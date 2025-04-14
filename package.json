@@ -1,0 +1,16 @@
+{
+  "name": "figma-agent-root",
+  "version": "1.0.0",
+  "description": "Figma AI Chat Plugin - Monorepo",
+  "private": true,
+  "workspaces": [
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build --workspace=packages/plugin && npm run build --workspace=packages/backend",
+    "dev:backend": "npm run dev --workspace=packages/backend",
+    "dev:plugin": "npm run watch --workspace=packages/plugin"
+  },
+  "author": "",
+  "license": "MIT"
+}
