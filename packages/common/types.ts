@@ -18,6 +18,6 @@ export type ChatHistory = ChatMessage[];
 // 聊天响应接口
 export interface ChatResponse {
   message: string;
-  responseId?: string; // 添加可选的响应ID字段，用于跟踪对话
-  sessionId?: string; // 添加会话ID字段，用于持续对话
+  responseId: string; // 响应ID字段(用于跟踪对话)，改为必需
+  sessionId: string; // 会话ID字段(用于持续对话)，改为必需
 }
