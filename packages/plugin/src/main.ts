@@ -1,106 +1,113 @@
-import { once, on, showUI, emit } from "@create-figma-plugin/utilities";
+// src/main.ts
+
+import { on, showUI, emit } from "@create-figma-plugin/utilities";
 import {
+  // 确保从你的 types.ts 导入所有需要的类型
   SendMessageHandler,
   CloseHandler,
   SetLoadingHandler,
   ReceiveMessageHandler,
   SetConnectionStatusHandler,
+  ConnectionStatus,
 } from "./types";
 import { apiService } from "./services/api";
+import { processFunctionCallLoop } from "./handlers/functionCalls";
 
 /**
  * 插件入口函数
  */
 export default function () {
-  // 本地存储会话ID
   let currentSessionId: string | null = null;
-  
-  // 显示UI
+  console.log("[main.ts] Plugin starting...");
+
   showUI({
     width: 320,
     height: 480,
-    position: { x: 0, y: 0 },
+    // position: { x: 0, y: 0 }, // 可选：设置初始位置
   });
+  console.log("[main.ts] UI shown.");
 
-  // 处理用户发送消息事件
-  on<SendMessageHandler>("SEND_MESSAGE", async function (message: string) {
+  // --- 消息处理 ---
+
+  on<SendMessageHandler>("SEND_MESSAGE", async (message: string) => {
+    console.log("[main.ts] Received SEND_MESSAGE from UI:", message ? `"${message}"` : "(Connection Test)");
     try {
-      // 设置加载状态
       emit<SetLoadingHandler>("SET_LOADING", true);
-      
-      // 检查连接状态
+
       const isConnected = await checkConnection();
       if (!isConnected) {
-        throw new Error("无法连接到后端服务");
+        console.warn("[main.ts] Connection check failed in SEND_MESSAGE. Aborting.");
+        return; // checkConnection 内部会处理 UI 反馈
       }
 
-      // 如果是空消息（连接测试），则不发送请求，仅检查连接
       if (message.trim() === "") {
+        console.log("[main.ts] Empty message received. Skipping chat request.");
+        // 即使是空消息，也可能需要更新一下连接状态显示
+        emit<SetConnectionStatusHandler>("SET_CONNECTION_STATUS", "connected");
         return;
       }
 
-      // 发送聊天请求 (只发送新消息和当前会话ID)
+      console.log(`[main.ts] Sending chat request for session: ${currentSessionId || 'New Session'}...`);
       const data = await apiService.sendChatRequest(message, currentSessionId || undefined);
-      const assistantMessage = data.message;
-      
-      // 更新本地会话ID (后端会返回，确保同步)
-      currentSessionId = data.sessionId;
+      console.log("[main.ts] Received chat response from backend.");
+      // console.log("[main.ts] Backend response data:", JSON.stringify(data, null, 2)); // Debug: Log full response
 
-      // 发送助手消息到UI
-      emit<ReceiveMessageHandler>("RECEIVE_MESSAGE", assistantMessage);
+      currentSessionId = data.sessionId;
+      console.log(`[main.ts] Updated currentSessionId: ${currentSessionId}`);
+
+      if (data.function_call) {
+        console.log("[main.ts] Function call detected in chat response. Starting agent loop.");
+        // 使用从模块导入的 processFunctionCallLoop
+        await processFunctionCallLoop(
+          data.function_call, 
+          data.sessionId, 
+          (loading: boolean) => emit<SetLoadingHandler>("SET_LOADING", loading),
+          (message: string) => emit<ReceiveMessageHandler>("RECEIVE_MESSAGE", message)
+        );
+      } else {
+        console.log("[main.ts] No function call. Sending AI text response to UI.");
+        emit<ReceiveMessageHandler>("RECEIVE_MESSAGE", data.message || "AI did not provide a text response.");
+      }
 
     } catch (error) {
-      // 如果遇到会话不存在或已过期的错误，清除本地会话ID
-      if (error instanceof Error && 
-          (error.message.includes("会话不存在") || 
-           error.message.includes("会话已过期"))) {
-        console.log("重置会话ID：会话不存在或已过期");
-        currentSessionId = null;
-      }
-      
-      // 显示友好的错误消息
-      let errorMessage = "抱歉，发生了一个错误。请稍后再试。";
-
-      if (error instanceof Error) {
-        errorMessage = `错误: ${error.message}`;
-      }
-      
-      // 只有在尝试发送实际消息时才在UI显示错误
-      if (message.trim() !== "") {
-        emit<ReceiveMessageHandler>("RECEIVE_MESSAGE", errorMessage);
-      }
-      emit<SetConnectionStatusHandler>("SET_CONNECTION_STATUS", "error");
-      
+      console.error("[main.ts] Error in SEND_MESSAGE handler:", error);
+      emit<ReceiveMessageHandler>(
+        "RECEIVE_MESSAGE",
+        `抱歉，处理您的消息时出错: ${error instanceof Error ? error.message : "未知错误"}`
+      );
+      // 尝试更新连接状态，因为错误可能与连接有关
+      await checkConnection();
     } finally {
-      // 取消加载状态
-      emit<SetLoadingHandler>("SET_LOADING", false);
+      emit<SetLoadingHandler>("SET_LOADING", false); // 确保加载状态被重置
     }
   });
 
-  // 处理关闭插件事件
-  once<CloseHandler>("CLOSE", function () {
+  on<CloseHandler>("CLOSE", () => {
+    console.log("[main.ts] Received CLOSE event from UI. Closing plugin.");
     figma.closePlugin();
   });
 
-  // 检查与后端的连接状态
-  async function checkConnection() {
-    try {
-      emit<SetConnectionStatusHandler>("SET_CONNECTION_STATUS", "connecting");
-      const health = await apiService.checkHealth();
-
-      if (health.status === "ok") {
-        emit<SetConnectionStatusHandler>("SET_CONNECTION_STATUS", "connected");
-        return true;
-      } else {
-        emit<SetConnectionStatusHandler>("SET_CONNECTION_STATUS", "error");
-        return false;
-      }
-    } catch (error) {
-      emit<SetConnectionStatusHandler>("SET_CONNECTION_STATUS", "error");
-      return false;
-    }
-  }
-
-  // 启动时检查连接状态
+  // --- 初始化 ---
+  console.log("[main.ts] Plugin initialized. Performing initial connection check.");
   checkConnection();
+}
+
+/**
+ * 检查与后端的连接状态，并更新UI
+ * @returns Promise<boolean> - 连接是否成功
+ */
+async function checkConnection(): Promise<boolean> {
+  console.log("[main.ts] Checking backend connection...");
+  emit<SetConnectionStatusHandler>("SET_CONNECTION_STATUS", "connecting");
+  try {
+    const health = await apiService.checkHealth();
+    console.log("[main.ts] Backend connection check successful:", health);
+    emit<SetConnectionStatusHandler>("SET_CONNECTION_STATUS", "connected");
+    return true;
+  } catch (error) {
+    console.error("[main.ts] Backend connection check failed:", error);
+    emit<SetConnectionStatusHandler>("SET_CONNECTION_STATUS", "error");
+    emit<ReceiveMessageHandler>("RECEIVE_MESSAGE", "错误：无法连接到 AI 服务。请检查网络或稍后再试。");
+    return false;
+  }
 }

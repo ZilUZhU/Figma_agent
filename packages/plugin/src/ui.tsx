@@ -92,7 +92,7 @@ function Plugin() {
         {connectionStatus === "error" && messages.length === 0 && (
           <div className={styles.connectionError}>
             <Text className={styles.errorText}>
-              无法连接到后端服务。请确保服务已启动并且正确配置了ngrok。
+              无法连接到后端服务。请确保服务已启动并且正确配置。
             </Text>
             <Button onClick={retryConnection}>重试连接</Button>
           </div>

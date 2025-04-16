@@ -8,7 +8,7 @@ const router = Router();
 /**
  * 聊天API端点
  * Expects: { message: string, sessionId?: string }
- * Returns: { message: string, responseId: string, sessionId: string }
+ * Returns: { message: string, responseId: string, sessionId: string, function_call?: {name, arguments} }
  */
 router.post("/", async (req: Request, res: Response) => {
   try {
@@ -64,25 +64,41 @@ router.post("/", async (req: Request, res: Response) => {
       sessionData.lastResponseId
     );
 
-    // 从响应中提取文本
-    const assistantMessageContent = response.output_text;
+    // 从响应中提取文本和响应ID
+    const assistantMessageContent = response.output_text || "";
+    const responseId = response.responseId;
 
     // 将助手回复添加到历史记录，准备存储
     const assistantMessage: ChatMessage = { role: "assistant", content: assistantMessageContent };
     const finalHistory = [...updatedHistory, assistantMessage];
 
     // 更新会话 (包括最后响应ID和最终历史)
-    updateSessionData(sessionId, response.id, finalHistory); 
+    updateSessionData(sessionId, responseId, finalHistory); 
 
     // 使用OpenAI响应的原始结构进行日志记录
     console.log("\n===== OpenAI响应完整结构 =====");
     console.log(JSON.stringify(response, null, 2));
     console.log("==============================\n");
 
-    // 返回回复 (始终包含必需的responseId和sessionId)
+    // 检查是否存在函数调用
+    if (response.function_call) {
+      console.log("\n===== 检测到函数调用 =====");
+      console.log(`函数名称: ${response.function_call.name}`);
+      console.log(`函数参数: ${JSON.stringify(response.function_call.arguments, null, 2)}`);
+      
+      // 返回带有函数调用的响应
+      return res.json({
+        message: assistantMessageContent,
+        responseId: responseId,
+        sessionId: sessionId,
+        function_call: response.function_call
+      });
+    }
+
+    // 返回常规回复 (始终包含必需的responseId和sessionId)
     res.json({
       message: assistantMessageContent,
-      responseId: response.id,
+      responseId: responseId,
       sessionId: sessionId,
     });
   } catch (error) {
@@ -107,6 +123,84 @@ router.post("/", async (req: Request, res: Response) => {
     // 默认错误响应
     res.status(500).json({
       error: "与AI服务通信时出错",
+      details: error instanceof Error ? error.message : "未知错误",
+    });
+  }
+});
+
+/**
+ * 函数执行结果回传接口
+ * Expects: { function_call_output, sessionId }
+ * Returns: { message, responseId, sessionId, function_call? }
+ */
+router.post("/function-callback", async (req: Request, res: Response) => {
+  try {
+    const { function_call_output, sessionId } = req.body;
+    
+    if (!function_call_output || !sessionId) {
+      return res.status(400).json({ error: "缺少 function_call_output 或 sessionId" });
+    }
+    
+    // 验证会话有效性
+    if (!isValidSession(sessionId)) {
+      return res.status(404).json({ error: "会话不存在或已过期" });
+    }
+    
+    // 获取会话数据
+    const { sessionData } = getOrCreateSession(sessionId);
+    const currentHistory = sessionData.chatHistory;
+    
+    // 将函数执行结果添加到历史记录
+    const updatedHistory = [...currentHistory, function_call_output];
+    
+    console.log(`\n===== 函数执行结果回传 [${sessionId}] =====`);
+    console.log(`函数执行结果: ${function_call_output.output}`);
+    
+    // 再次调用 OpenAI 继续对话
+    const response = await generateChatResponse(
+      updatedHistory,
+      sessionData.lastResponseId
+    );
+    
+    // 提取回复信息
+    const assistantMessageContent = response.output_text || "";
+    const responseId = response.responseId;
+    
+    // 将 AI 回复添加到历史
+    const assistantMessage: ChatMessage = { role: "assistant", content: assistantMessageContent };
+    const finalHistory = [...updatedHistory, assistantMessage];
+    
+    // 更新会话数据
+    updateSessionData(sessionId, responseId, finalHistory);
+    
+    console.log("\n===== 函数回调后的 OpenAI 响应 =====");
+    console.log(JSON.stringify(response, null, 2));
+    
+    // 检查是否还有函数调用
+    if (response.function_call) {
+      console.log("\n===== 检测到新的函数调用 =====");
+      console.log(`函数名称: ${response.function_call.name}`);
+      
+      // 返回带有函数调用的响应
+      return res.json({
+        message: assistantMessageContent,
+        responseId: responseId,
+        sessionId: sessionId,
+        function_call: response.function_call
+      });
+    }
+    
+    // 返回最终回复（不再包含函数调用）
+    res.json({
+      message: assistantMessageContent,
+      responseId: responseId,
+      sessionId: sessionId,
+    });
+    
+  } catch (error) {
+    console.error("函数结果处理错误:", error);
+    res.status(500).json({
+      error: "处理函数执行结果失败",
       details: error instanceof Error ? error.message : "未知错误",
     });
   }

@@ -1,7 +1,15 @@
 {
   "extends": "@create-figma-plugin/tsconfig",
   "compilerOptions": {
-    "typeRoots": ["node_modules/@figma", "node_modules/@types"]
+    "typeRoots": ["node_modules/@figma", "node_modules/@types"],
+    "baseUrl": ".",
+    "paths": {
+      "*": ["*", "node_modules/*"],
+      "@tools/*": ["packages/backend/src/tools/*"],
+      "@backend/*": ["packages/backend/src/*"]
+    },
+    "resolveJsonModule": true,
+    "esModuleInterop": true
   },
-  "include": ["src/**/*.ts", "src/**/*.tsx"]
+  "include": ["src/**/*.ts", "src/**/*.tsx", "packages/**/*.ts", "packages/**/*.tsx"]
 }

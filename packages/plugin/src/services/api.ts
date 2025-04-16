@@ -135,6 +135,22 @@ export class ApiService {
   }
 
   /**
+   * 发送函数执行结果到后端
+   * @param function_call_output - 函数执行结果对象
+   * @param sessionId - 当前会话ID
+   */
+  async sendFunctionResult(
+    function_call_output: any,
+    sessionId: string
+  ): Promise<ChatResponse> {
+    return this.request<ChatResponse>({
+      method: "POST",
+      path: "/api/chat/function-callback",
+      body: { function_call_output, sessionId },
+    });
+  }
+
+  /**
    * 检查API健康状态
    */
   async checkHealth(): Promise<{ status: string }> {
