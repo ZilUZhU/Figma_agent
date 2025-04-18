@@ -1,25 +1,35 @@
 /**
- * Figma AI工具索引
- * 集中导出所有可用的function calling工具
+ * Figma AI Tools Index
+ * Consolidates and exports all available function/tool definitions for the OpenAI API.
  */
 
-import { createStickyNote } from './createStickyNote';
+import { createStickyNoteTool } from './createStickyNote';
+// Import other tool definitions here
+// import { createRectangleTool } from './createRectangle';
+// import { createTextTool } from './createText';
+// import { getCurrentNodeIdTool } from './getCurrentNodeId';
 
-// 可用工具列表，可以根据需要启用或禁用特定工具
-export const availableTools = [
-  createStickyNote,
-  // 添加更多工具，例如：
-  // createConnector,
-  // createShape,
-  // createText,
-  // 等等
+import { Tool } from '../types'; // Assuming base Tool type
+
+// Array containing all tools to be made available to the AI
+export const availableTools: Tool[] = [
+  createStickyNoteTool,
+  // Add other imported tools here:
+  // createRectangleTool,
+  // createTextTool,
+  // getCurrentNodeIdTool,
 ];
 
-// 导出所有单独的工具以供直接引用
+// Optional: Export individual tools if they need to be referenced directly elsewhere
 export {
-  createStickyNote,
-  // 在这里添加其他工具导出
+  createStickyNoteTool,
+  // createRectangleTool,
+  // createTextTool,
+  // getCurrentNodeIdTool,
 };
 
-// 导出函数调用类型
-export type FunctionCallTools = (typeof availableTools)[number]['name']; 
+// Generate a union type of available tool names (useful for type checking)
+// Note: This relies on the structure Tool having function.name
+// Adjust if your Tool type structure is different.
+// type AvailableToolNames = typeof availableTools[number]['function']['name'];
+// export type FunctionCallTools = Extract<AvailableToolNames, string>;

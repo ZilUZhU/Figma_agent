@@ -10,104 +10,113 @@ import {
   SetConnectionStatusHandler,
   ConnectionStatus,
 } from "./types";
-import { apiService } from "./services/api";
-import { processFunctionCallLoop } from "./handlers/functionCalls";
+import { handleFunctionCall } from "./handlers/functionCalls";
+import { WebSocketService } from "./services/websocket";
 
 /**
  * 插件入口函数
  */
 export default function () {
-  let currentSessionId: string | null = null;
-  console.log("[main.ts] Plugin starting...");
+  console.log("[main.ts] 插件启动中...");
 
   showUI({
     width: 320,
     height: 480,
-    // position: { x: 0, y: 0 }, // 可选：设置初始位置
   });
-  console.log("[main.ts] UI shown.");
+  console.log("[main.ts] UI已显示");
 
-  // --- 消息处理 ---
-
-  on<SendMessageHandler>("SEND_MESSAGE", async (message: string) => {
-    console.log("[main.ts] Received SEND_MESSAGE from UI:", message ? `"${message}"` : "(Connection Test)");
-    try {
+  // 创建WebSocket服务
+  const wsService = new WebSocketService({
+    // 收到消息时发送到UI
+    onMessage: (message: string) => {
+      console.log("[main.ts] 收到完整消息");
+      emit<ReceiveMessageHandler>("RECEIVE_MESSAGE", message);
+    },
+    
+    // 连接状态变更时通知UI
+    onStatusChange: (status: ConnectionStatus) => {
+      console.log(`[main.ts] WebSocket连接状态: ${status}`);
+      emit<SetConnectionStatusHandler>("SET_CONNECTION_STATUS", status);
+    },
+    
+    // 收到流式文本块时发送到UI
+    onChunk: (chunk: string) => {
+      console.log("[main.ts] 收到流式文本块");
+      emit("STREAM_CHUNK", chunk);
+    },
+    
+    // 收到函数调用时执行
+    onFunctionCall: async (functionCall: any) => {
+      console.log(`[main.ts] 收到函数调用: ${functionCall.name}`);
+      
+      // 开始加载状态
       emit<SetLoadingHandler>("SET_LOADING", true);
-
-      const isConnected = await checkConnection();
-      if (!isConnected) {
-        console.warn("[main.ts] Connection check failed in SEND_MESSAGE. Aborting.");
-        return; // checkConnection 内部会处理 UI 反馈
-      }
-
-      if (message.trim() === "") {
-        console.log("[main.ts] Empty message received. Skipping chat request.");
-        // 即使是空消息，也可能需要更新一下连接状态显示
-        emit<SetConnectionStatusHandler>("SET_CONNECTION_STATUS", "connected");
-        return;
-      }
-
-      console.log(`[main.ts] Sending chat request for session: ${currentSessionId || 'New Session'}...`);
-      const data = await apiService.sendChatRequest(message, currentSessionId || undefined);
-      console.log("[main.ts] Received chat response from backend.");
-      // console.log("[main.ts] Backend response data:", JSON.stringify(data, null, 2)); // Debug: Log full response
-
-      currentSessionId = data.sessionId;
-      console.log(`[main.ts] Updated currentSessionId: ${currentSessionId}`);
-
-      if (data.function_call) {
-        console.log("[main.ts] Function call detected in chat response. Starting agent loop.");
-        // 使用从模块导入的 processFunctionCallLoop
-        await processFunctionCallLoop(
-          data.function_call, 
-          data.sessionId, 
-          (loading: boolean) => emit<SetLoadingHandler>("SET_LOADING", loading),
-          (message: string) => emit<ReceiveMessageHandler>("RECEIVE_MESSAGE", message)
+      
+      try {
+        // 执行函数调用
+        console.log(`[main.ts] 执行函数: ${functionCall.name}`);
+        const result = await handleFunctionCall(functionCall);
+        
+        // 将结果发送回服务器
+        wsService.sendFunctionResult({
+          call_id: functionCall.call_id,
+          output: result
+        });
+      } catch (error) {
+        console.error("[main.ts] 函数调用错误:", error);
+        
+        // 通知用户错误
+        emit<ReceiveMessageHandler>(
+          "RECEIVE_MESSAGE",
+          `函数执行错误: ${error instanceof Error ? error.message : String(error)}`
         );
-      } else {
-        console.log("[main.ts] No function call. Sending AI text response to UI.");
-        emit<ReceiveMessageHandler>("RECEIVE_MESSAGE", data.message || "AI did not provide a text response.");
+        
+        // 结束加载状态
+        emit<SetLoadingHandler>("SET_LOADING", false);
       }
-
-    } catch (error) {
-      console.error("[main.ts] Error in SEND_MESSAGE handler:", error);
-      emit<ReceiveMessageHandler>(
-        "RECEIVE_MESSAGE",
-        `抱歉，处理您的消息时出错: ${error instanceof Error ? error.message : "未知错误"}`
-      );
-      // 尝试更新连接状态，因为错误可能与连接有关
-      await checkConnection();
-    } finally {
-      emit<SetLoadingHandler>("SET_LOADING", false); // 确保加载状态被重置
     }
   });
 
-  on<CloseHandler>("CLOSE", () => {
-    console.log("[main.ts] Received CLOSE event from UI. Closing plugin.");
-    figma.closePlugin();
+  // 立即连接
+  wsService.connect();
+
+  // --- 消息处理 ---
+
+  // 处理用户发送消息
+  on<SendMessageHandler>("SEND_MESSAGE", async (message: string) => {
+    console.log(`[main.ts] 收到用户消息: ${message || "(空消息/连接测试)"}`);
+    
+    try {
+      // 如果是空消息，仅检查连接
+      if (message.trim() === "") {
+        console.log("[main.ts] 空消息，仅检查连接");
+        return;
+      }
+      
+      // 设置加载状态
+      emit<SetLoadingHandler>("SET_LOADING", true);
+      
+      // 发送消息到WebSocket服务器
+      wsService.sendMessage(message);
+      
+    } catch (error) {
+      console.error("[main.ts] 发送消息错误:", error);
+      
+      // 通知用户错误
+      emit<ReceiveMessageHandler>(
+        "RECEIVE_MESSAGE",
+        `错误: ${error instanceof Error ? error.message : "未知错误"}`
+      );
+      
+      // 重置加载状态
+      emit<SetLoadingHandler>("SET_LOADING", false);
+    }
   });
 
-  // --- 初始化 ---
-  console.log("[main.ts] Plugin initialized. Performing initial connection check.");
-  checkConnection();
-}
-
-/**
- * 检查与后端的连接状态，并更新UI
- * @returns Promise<boolean> - 连接是否成功
- */
-async function checkConnection(): Promise<boolean> {
-  console.log("[main.ts] Checking backend connection...");
-  emit<SetConnectionStatusHandler>("SET_CONNECTION_STATUS", "connecting");
-  try {
-    const health = await apiService.checkHealth();
-    console.log("[main.ts] Backend connection check successful:", health);
-    emit<SetConnectionStatusHandler>("SET_CONNECTION_STATUS", "connected");
-    return true;
-  } catch (error) {
-    console.error("[main.ts] Backend connection check failed:", error);
-    emit<SetConnectionStatusHandler>("SET_CONNECTION_STATUS", "error");
-    emit<ReceiveMessageHandler>("RECEIVE_MESSAGE", "错误：无法连接到 AI 服务。请检查网络或稍后再试。");
-    return false;
-  }
+  // 处理关闭事件
+  on<CloseHandler>("CLOSE", function () {
+    console.log("[main.ts] 插件关闭");
+    wsService.disconnect();
+    figma.closePlugin();
+  });
 }

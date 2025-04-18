@@ -54,3 +54,4 @@ logs/
 
 .turbo
 docs/
+.cursor/

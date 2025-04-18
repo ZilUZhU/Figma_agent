@@ -3,11 +3,13 @@
  * 集中管理AI相关的配置和系统消息
  */
 
-import { ChatMessage } from "../types";
+// Use path alias for imports
+import { ChatMessage } from "@common/types"; // Import the common ChatMessage type directly
+// Note: We don't need the BackendChatMessage extension here, just the common structure.
 
 // AI助手系统角色和说明
 export const SYSTEM_INSTRUCTION: ChatMessage = {
-  role: "system",
+  role: "developer", // Use 'developer' role for high-priority instructions with Responses API
   content: `
 你是一个专为设计师打造的 Figma 插件 AI 助手。你的主要职责是为用户提供专业的设计建议和技术支持，帮助他们解决在使用 Figma 和 Figjam 时遇到的各种问题。你精通设计原理、用户界面设计、图形组件以及协同创作工具，熟悉 Figma 与 Figjam 的各项功能和工作流程。
 
@@ -22,22 +24,16 @@ export const SYSTEM_INSTRUCTION: ChatMessage = {
   `,
 };
 
-// 默认的模型名称
-export const DEFAULT_MODEL = "gpt-4.1-2025-04-14";
+// Helper function to ensure the system instruction is present in a message list
+// Primarily useful if *not* using previous_response_id consistently
+export function ensureSystemInstruction(
+  messages: Array<ChatMessage | any> // Allow other types like function output
+): Array<ChatMessage | any> {
+  const hasDeveloperInstruction = messages.length > 0 && messages[0]?.role === 'developer';
 
-// 是否在测试模式下运行(使用较小的模型以节省费用)
-export const IS_TEST_MODE = process.env.NODE_ENV === "test";
-
-// 获取系统消息和用户消息的完整消息数组
-export function getFullConversation(userMessages: ChatMessage[]): ChatMessage[] {
-  // 检查是否已经包含系统消息
-  const hasSystemMessage = userMessages.some(msg => msg.role === "system");
-  
-  // 如果没有系统消息，则添加默认系统消息
-  if (!hasSystemMessage) {
-    return [SYSTEM_INSTRUCTION, ...userMessages];
+  if (!hasDeveloperInstruction) {
+    return [SYSTEM_INSTRUCTION, ...messages];
   }
-  
-  // 如果已有系统消息，直接返回原始消息数组
-  return userMessages;
-} 
+
+  return messages;
+}

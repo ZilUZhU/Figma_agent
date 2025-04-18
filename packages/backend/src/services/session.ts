@@ -1,122 +1,191 @@
 import { randomUUID } from "crypto";
-import { ChatHistory } from "../types"; // Import ChatHistory type
+import { InputMessage, BackendChatMessage, HistoryMessage } from "../types"; // Make sure to import the correct types
+import { logger } from "../utils/logger"; // Import logger
 
-// 会话数据接口
+// Define the structure for function call results within the history
+// (Matches the structure needed for Responses API input)
+export type FunctionCallOutputMessage = {
+  type: "function_call_output";
+  call_id: string;
+  output: string; // Must be a string
+};
+
+// Re-export HistoryMessage type for convenience
+export { HistoryMessage };
+
+// Session Data Interface
 export interface SessionData {
-  lastResponseId: string | null;
-  chatHistory: ChatHistory; // Add chat history to session data
-  lastAccessed: number; // 添加最后访问时间戳
+  previousResponseId: string | null; // Renamed from lastResponseId
+  chatHistory: HistoryMessage[]; // Stores the conceptual history
+  lastAccessed: number; // Timestamp for TTL calculation
 }
 
-// 会话有效期（毫秒），默认24小时
+// Session Time-To-Live (TTL) in milliseconds (e.g., 24 hours)
 const SESSION_TTL = 24 * 60 * 60 * 1000;
 
-// 清理间隔（毫秒），默认1小时
+// Interval for cleaning up expired sessions (e.g., 1 hour)
 const CLEANUP_INTERVAL = 60 * 60 * 1000;
 
-// 使用内存存储会话ID (生产环境应使用持久化存储)
+// In-memory session storage (Replace with Redis/DB for production)
 const sessions: Map<string, SessionData> = new Map();
 
-// 定期清理过期会话
+// --- Session Cleanup Task ---
 function setupSessionCleanup() {
   setInterval(() => {
     const now = Date.now();
     let expiredCount = 0;
-    
+    const currentSize = sessions.size;
+
     sessions.forEach((session, sessionId) => {
       if (now - session.lastAccessed > SESSION_TTL) {
         sessions.delete(sessionId);
         expiredCount++;
       }
     });
-    
+
     if (expiredCount > 0) {
-      console.log(`已清理 ${expiredCount} 个过期会话，当前会话数: ${sessions.size}`);
+      logger.info( { expiredCount, remainingSessions: sessions.size, initialSize: currentSize }, "Session cleanup task finished" );
+    } else if (currentSize > 0) {
+        logger.debug({ activeSessions: currentSize }, "Session cleanup task ran, no sessions expired");
     }
   }, CLEANUP_INTERVAL);
-  
-  console.log('会话清理任务已启动');
+
+  logger.info({ intervalMs: CLEANUP_INTERVAL, ttlMs: SESSION_TTL }, "Session cleanup task started");
 }
 
-// 启动会话清理任务
+// Start the cleanup task when the module loads
 setupSessionCleanup();
 
 /**
- * 获取会话数据，如果不存在则创建新的
+ * Retrieves session data or creates a new session if it doesn't exist or is invalid.
+ * Updates the last accessed time for existing valid sessions.
+ * @param requestedSessionId Optional ID provided by the client.
+ * @returns An object containing the session ID, session data, and a flag indicating if it's a new session.
  */
-export function getOrCreateSession(requestSessionId?: string): {
+export function getOrCreateSession(requestedSessionId?: string): {
   sessionId: string;
   sessionData: SessionData;
   isNewSession: boolean;
 } {
-  // 如果没有提供sessionId，则自动生成一个
-  const sessionId = requestSessionId || randomUUID();
+  let sessionId = requestedSessionId;
   let isNewSession = false;
+  let sessionData: SessionData | undefined = undefined;
 
-  // 获取或创建会话数据
-  let sessionData = sessions.get(sessionId);
+  // Validate existing session ID if provided
+  if (sessionId) {
+    sessionData = sessions.get(sessionId);
+    if (sessionData) {
+      // Check TTL
+      if (Date.now() - sessionData.lastAccessed > SESSION_TTL) {
+        logger.info({ sessionId }, "Session expired, creating new one");
+        sessions.delete(sessionId); // Remove expired session
+        sessionData = undefined; // Force creation of a new session
+        sessionId = undefined; // Clear the requested ID as it's invalid now
+      } else {
+        // Valid session, update last accessed time
+        sessionData.lastAccessed = Date.now();
+        logger.debug({ sessionId }, "Existing session found and validated");
+      }
+    } else {
+      logger.info({ requestedSessionId }, "Requested session ID not found, creating new one");
+      sessionId = undefined; // Force creation of a new session
+    }
+  }
+
+  // Create a new session if needed
   if (!sessionData) {
-    // Initialize with empty history when creating a new session
-    sessionData = { 
-      lastResponseId: null, 
-      chatHistory: [],
-      lastAccessed: Date.now()
-    }; 
+    sessionId = randomUUID(); // Generate a new UUID for the session
+    sessionData = {
+      previousResponseId: null,
+      chatHistory: [], // Initialize with empty history
+      lastAccessed: Date.now(),
+    };
     sessions.set(sessionId, sessionData);
     isNewSession = true;
-  } else {
-    // 更新最后访问时间
-    sessionData.lastAccessed = Date.now();
+    logger.info({ sessionId }, "New session created");
   }
 
-  return { sessionId, sessionData, isNewSession };
+  // We know sessionData is defined here, and sessionId is the correct (potentially new) ID
+  return { sessionId: sessionId!, sessionData, isNewSession };
 }
 
 /**
- * 检查会话是否有效
- * @param sessionId 会话ID
- * @returns 会话是否有效
+ * Checks if a session ID exists and is within its TTL.
+ * Does NOT update the last accessed time. Use getOrCreateSession for active use.
+ * @param sessionId The session ID to validate.
+ * @returns True if the session exists and is not expired, false otherwise.
  */
 export function isValidSession(sessionId: string): boolean {
-  // 检查会话是否存在
-  if (!sessions.has(sessionId)) {
+  const session = sessions.get(sessionId);
+  if (!session) {
+    return false; // Session does not exist
+  }
+  // Check if expired
+  if (Date.now() - session.lastAccessed > SESSION_TTL) {
+     // Optionally log or delete here, but getOrCreateSession handles deletion too
+     logger.debug({sessionId}, "isValidSession check: Session found but expired");
     return false;
   }
-  
-  // 检查会话是否过期
-  const session = sessions.get(sessionId)!;
-  const now = Date.now();
-  const isExpired = now - session.lastAccessed > SESSION_TTL;
-  
-  // 如果过期，删除会话
-  if (isExpired) {
-    sessions.delete(sessionId);
-    return false;
-  }
-  
-  return true;
+  return true; // Session exists and is not expired
 }
 
 /**
- * 更新会话数据 (包括最后响应ID和聊天历史)
+ * Updates the session data with the latest response ID and chat history.
+ * Also updates the last accessed timestamp.
+ * @param sessionId The ID of the session to update.
+ * @param newPreviousResponseId The ID of the *latest* OpenAI response (to be used as previousResponseId in the *next* call).
+ * @param messageToAdd The message (user, assistant, or function output) to add to the history.
  */
 export function updateSessionData(
   sessionId: string,
-  responseId: string,
-  updatedHistory: ChatHistory
+  newPreviousResponseId: string,
+  messageToAdd: BackendChatMessage | FunctionCallOutputMessage
 ): void {
   const sessionData = sessions.get(sessionId);
   if (sessionData) {
-    sessionData.lastResponseId = responseId;
-    sessionData.chatHistory = updatedHistory;
-    sessionData.lastAccessed = Date.now(); // 更新最后访问时间
+    sessionData.previousResponseId = newPreviousResponseId;
+    // Append the new message to the conceptual history
+    sessionData.chatHistory.push(messageToAdd as HistoryMessage);
+    sessionData.lastAccessed = Date.now(); // Update timestamp
+    logger.debug({ sessionId, newPreviousResponseId, historyLength: sessionData.chatHistory.length }, "Session data updated");
+  } else {
+     logger.warn({ sessionId }, "Attempted to update non-existent session");
   }
 }
 
+
 /**
- * 获取当前活跃会话数量
- * @returns 当前活跃会话数量
+ * Adds a message to the session's history without updating the response ID.
+ * Useful for adding user messages or function results before the AI call.
+ * Updates the last accessed timestamp.
+ * @param sessionId The ID of the session.
+ * @param messageToAdd The message to add.
+ */
+export function addMessageToHistory(sessionId: string, messageToAdd: BackendChatMessage | FunctionCallOutputMessage): void {
+    const sessionData = sessions.get(sessionId);
+    if (sessionData) {
+        sessionData.chatHistory.push(messageToAdd as HistoryMessage);
+        sessionData.lastAccessed = Date.now();
+        logger.debug({ sessionId, historyLength: sessionData.chatHistory.length }, "Message added to session history");
+    } else {
+        logger.warn({ sessionId }, "Attempted to add message to non-existent session");
+    }
+}
+
+/**
+ * Gets the current count of active (non-expired) sessions.
+ * @returns The number of active sessions.
  */
 export function getActiveSessionCount(): number {
-  return sessions.size;
-} 
+  // Filter out potentially expired sessions just in case cleanup hasn't run
+  const now = Date.now();
+  let activeCount = 0;
+  sessions.forEach(session => {
+      if (now - session.lastAccessed <= SESSION_TTL) {
+          activeCount++;
+      }
+  });
+  return activeCount;
+  // Or simply return sessions.size if TTL check isn't critical here
+  // return sessions.size;
+}
