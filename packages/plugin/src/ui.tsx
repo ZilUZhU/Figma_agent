@@ -26,7 +26,8 @@ function Plugin() {
     inputValue,
     sendMessage,
     handleInputChange,
-    retryConnection
+    retryConnection,
+    currentStreamId,
   } = useChatConnection();
 
   // 创建引用用于滚动
@@ -40,10 +41,13 @@ function Plugin() {
   }, [messages]);
 
   // 处理 textarea 输入变化
-  const handleInput = useCallback(function (event: Event) {
-    const target = event.target as HTMLTextAreaElement;
-    handleInputChange(target.value);
-  }, [handleInputChange]);
+  const handleInput = useCallback(
+    function (event: Event) {
+      const target = event.target as HTMLTextAreaElement;
+      handleInputChange(target.value);
+    },
+    [handleInputChange]
+  );
 
   // 处理 textarea 键盘事件
   const handleKeyDown = useCallback(
@@ -51,10 +55,19 @@ function Plugin() {
       // Shift + Enter 换行, 单独 Enter 发送
       if (event.key === "Enter" && !event.shiftKey) {
         event.preventDefault(); // 阻止 Enter 默认换行
-        sendMessage();
+
+        // 使用与发送按钮相同的条件逻辑
+        const canSend =
+          inputValue.trim() !== "" &&
+          !isLoading &&
+          connectionStatus === "connected";
+
+        if (canSend) {
+          sendMessage();
+        }
       }
     },
-    [sendMessage]
+    [sendMessage, inputValue, isLoading, connectionStatus]
   );
 
   // 是否显示输入区域 (连接错误时隐藏)
@@ -76,14 +89,16 @@ function Plugin() {
         ) : (
           messages.map((message, index) => (
             <MessageBubble
-              key={index}
+              key={message.id || index}
               message={message.text}
               isUser={message.isUser}
+              isComplete={message.isComplete !== false}
+              id={message.id}
             />
           ))
         )}
         {/* 加载指示器 */}
-        {isLoading && (
+        {isLoading && !currentStreamId.current && (
           <div className={styles.loadingContainer}>
             <LoadingIndicator />
           </div>
@@ -110,7 +125,7 @@ function Plugin() {
             value={inputValue}
             onInput={handleInput}
             onKeyDown={handleKeyDown}
-            disabled={isLoading || connectionStatus !== "connected"}
+            disabled={connectionStatus !== "connected"}
             rows={4}
           />
           {/* 使用普通button元素替换Button组件 */}

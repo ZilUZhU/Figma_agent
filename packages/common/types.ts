@@ -3,7 +3,6 @@
  * 这个文件包含在后端和前端之间共享的类型定义
  */
 
-
 // Define the possible roles in a conversation
 export type MessageRole = "user" | "assistant" | "developer" | "system"; // Add other roles if needed
 
@@ -14,21 +13,6 @@ export interface ChatMessage {
   // Optional: Add timestamp or other common metadata if needed across packages
   // timestamp?: string;
 }
-
-
-// // 单个聊天消息的接口
-// export interface ChatMessage {
-//   role: MessageRole;
-//   content: string;
-//   function_call?: {
-//     name: string;
-//     arguments: string;
-//   };
-//   // 其他可能的字段
-//   type?: string;
-//   name?: string;
-//   output?: string;
-// }
 
 // 聊天历史的类型
 export type ChatHistory = ChatMessage[];
@@ -67,4 +51,8 @@ export interface ChatResponse {
 }
 
 // WebSocket相关类型
-export type ConnectionStatus = "connecting" | "connected" | "disconnected" | "error";
+export type ConnectionStatus =
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "error";

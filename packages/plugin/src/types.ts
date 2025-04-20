@@ -37,6 +37,23 @@ export type ConnectionStatus =
   | "error"
   | "disconnected";
 
+export interface FunctionCallData {
+  call_id: string;
+  name: string;
+  arguments: string;
+}
+
+export interface RequestFigmaFunctionHandler extends EventHandler {
+  name: "REQUEST_FIGMA_FUNCTION";
+  handler: (functionCallData: FunctionCallData) => void;
+}
+
+// Main -> UI: Send back the result of the Figma function execution
+export interface FigmaFunctionResultHandler extends EventHandler {
+  name: "FIGMA_FUNCTION_RESULT";
+  handler: (result: { call_id: string; output: string }) => void; // Output is stringified result
+}
+
 // UI -> 插件: 请求执行 Figma 操作
 export interface ExecuteFigmaActionMessage extends EventHandler {
   name: "EXECUTE_FIGMA_ACTION";
@@ -51,8 +68,8 @@ export interface ExecuteFigmaActionMessage extends EventHandler {
 export interface ActionResultPayload {
   success: boolean;
   nodeId?: string; // 创建/修改的节点ID
-  data?: any;      // 成功时的附加信息或描述
-  error?: string;  // 失败时的错误信息
+  data?: any; // 成功时的附加信息或描述
+  error?: string; // 失败时的错误信息
 }
 
 export interface ActionResultMessage extends EventHandler {

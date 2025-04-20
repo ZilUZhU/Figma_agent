@@ -20,6 +20,9 @@ NODE_ENV=development
 
 # 调试请求头（可选，默认为false）
 DEBUG_HEADERS=false
+
+# 日志级别（可选，默认为info）
+LOG_LEVEL=info
 ```
 
 ### 代码结构
@@ -36,7 +39,7 @@ DEBUG_HEADERS=false
 
 ### 会话管理
 
-后端负责管理完整的对话历史记录，自动为每个会话分配唯一ID，并提供会话过期清理机制。
+后端负责管理完整的对话历史记录，自动为每个会话分配唯一 ID，并提供会话过期清理机制。
 
 ### API 端点
 
@@ -66,5 +69,20 @@ DEBUG_HEADERS=false
 #### GET /health
 
 健康检查端点，返回服务状态与诊断信息。
+
+### 日志级别
+
+日志系统支持以下级别（从最低到最高优先级）：
+
+- `trace` - 非常详细的调试信息（例如 WebSocket 消息分片）
+- `debug` - 调试信息（详细流程）
+- `info` - 关键操作和状态变化（生产环境默认级别）
+- `warn` - 潜在问题或异常情况
+- `error` - 影响功能的错误
+- `fatal` - 需要立即关注的严重错误
+
+设置一个日志级别将输出该级别及更高级别的所有日志。例如，设置 `LOG_LEVEL=info` 将输出 info、warn、error 和 fatal 日志，但不输出 debug 和 trace 日志。
+
+```
 
 ```

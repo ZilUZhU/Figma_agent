@@ -15,23 +15,24 @@ export interface BackendChatMessage extends CommonChatMessage {
   role: MessageRole; // Explicitly redefining helps clarity, but inherited
   content: string | null; // Inherited
   // Add backend-specific properties:
-  tool_calls?: Array<{ // Store tool calls made by the assistant for history context
-      id: string; // This is the tool_call_id from OpenAI
-      type: "function";
-      function: {
-          name: string;
-          arguments: string; // JSON string
-      };
+  tool_calls?: Array<{
+    // Store tool calls made by the assistant for history context
+    id: string; // This is the tool_call_id from OpenAI
+    type: "function";
+    function: {
+      // Note: The *response* from OpenAI uses this nested structure for tool_calls
+      name: string;
+      arguments: string; // JSON string
+    };
   }>;
   // timestamp?: string; // Example: if backend adds timestamps
 }
 
-
 // Specific type for function call results to be added to history/API input
 export type FunctionCallOutputMessage = {
-    type: "function_call_output";
-    call_id: string; // ID of the function call being responded to
-    output: string;  // The result of the function execution, as a string
+  type: "function_call_output";
+  call_id: string; // ID of the function call being responded to
+  output: string; // The result of the function execution, as a string
 };
 
 // Union type for messages that can be stored in the session history
@@ -42,25 +43,24 @@ export type HistoryMessage = BackendChatMessage | FunctionCallOutputMessage;
 // So we use the imported CommonChatMessage here, not the extended BackendChatMessage
 export type InputMessage = CommonChatMessage | FunctionCallOutputMessage;
 
-
-// Define a base structure for Tool definitions
-// Matches the structure expected by OpenAI's API (nested 'function' object)
+// Define the structure for Tool definitions sent in the API *request*
+// Matches the structure expected by OpenAI's API `tools` parameter.
 export interface Tool {
-    type: "function";
-    function: {
-        name: string;
-        description: string;
-        strict?: boolean; // Optional strict mode flag supported by Responses API tools
-        parameters: Record<string, unknown>; // JSON Schema object for parameters
-    };
+  type: "function";
+  // Properties are direct children
+  name: string;
+  description: string;
+  // *** THE FIX IS HERE: 'strict' is now required boolean ***
+  strict: boolean; // Changed from strict?: boolean
+  parameters: Record<string, unknown>; // JSON Schema object for parameters
 }
 
 // --- Add other backend-specific types below ---
 
 // Type for structured logging entries
 export interface LogEntry {
-    level: 'debug' | 'info' | 'warn' | 'error' | 'fatal';
-    timestamp: string;
-    message: string;
-    [key: string]: any; // Allow additional context fields
+  level: "trace" | "debug" | "info" | "warn" | "error" | "fatal";
+  timestamp: string;
+  message: string;
+  [key: string]: any; // Allow additional context fields
 }

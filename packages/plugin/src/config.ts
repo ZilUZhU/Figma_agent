@@ -37,7 +37,7 @@ export const config = {
   // WebSocket重连配置
   reconnectMaxAttempts: 5,
   reconnectInitialDelay: 1000, // 初始延迟1秒
-  reconnectMaxDelay: 30000,    // 最大延迟30秒
+  reconnectMaxDelay: 30000, // 最大延迟30秒
 
   // 会话超时配置 (Not directly used in current code, but kept for reference)
   // sessionTimeout: 30 * 60 * 1000, // 30分钟

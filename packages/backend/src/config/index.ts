@@ -2,7 +2,7 @@
  * 服务器配置
  */
 
-import 'dotenv/config'; // Load environment variables from .env file
+import "dotenv/config"; // Load environment variables from .env file
 
 // Required: OpenAI API Key
 export const OPENAI_API_KEY = process.env.OPENAI_API_KEY;
@@ -13,18 +13,24 @@ if (!OPENAI_API_KEY) {
   // process.exit(1);
 }
 
-// Default OpenAI Model (using gpt-4o as recommended)
-export const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4o";
+// Default OpenAI Model (using latres openai model gpt-4.1-2025-04-14 as recommended)
+export const OPENAI_MODEL = process.env.OPENAI_MODEL || "gpt-4.1-2025-04-14";
 
 // Server Port
 export const PORT = Number(process.env.PORT) || 3000;
 
 // Environment Settings
-export const NODE_ENV = process.env.NODE_ENV || 'development';
-export const isDevMode = NODE_ENV === 'development';
+export const NODE_ENV = process.env.NODE_ENV || "development";
+export const isDevMode = NODE_ENV === "development";
+
+// Logging configuration
+// Supported levels: trace, debug, info, warn, error, fatal
+// Default to 'debug' in development, 'info' in production
+export const LOG_LEVEL =
+  process.env.LOG_LEVEL || (isDevMode ? "debug" : "info");
 
 // Debugging flag for request headers (optional)
-export const DEBUG_HEADERS = process.env.DEBUG_HEADERS === 'true';
+export const DEBUG_HEADERS = process.env.DEBUG_HEADERS === "true";
 
 // CORS Configuration
 export const corsOptions = {

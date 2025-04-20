@@ -1,177 +1,113 @@
 /**
  * 函数调用处理模块
  * 负责处理从WebSocket接收的函数调用请求
+ * 并分发到相应的 Figma 操作函数
  */
 
-// 导入工具函数
-const safeJsonParse = (jsonString: string, defaultValue: any = {}): any => {
-  try {
-    return JSON.parse(jsonString);
-  } catch (error) {
-    console.error("JSON解析错误:", error);
-    return defaultValue;
-  }
-};
+// Import the actual action handlers
+import { handleCreateStickyNote } from "./figmaActions"; // <-- IMPORT THE ACTION
+// Import other necessary action handlers if they exist in figmaActions.ts
+// import { handleCreateRectangle, handleCreateText } from './figmaActions';
 
-// Figma函数实现
-// 注意：由于无法直接导入figmaFunctions.ts，我们在这里直接实现核心函数
+// Import utility functions if needed here, or rely on them within figmaActions.ts
+import { safeJsonParse } from "../utils/jsonUtils";
+import { FunctionCallData } from "../types"; // Import necessary type
 
-// 获取当前选中节点ID
+// --- Define Figma Functions that might be directly callable (if any) ---
+// Or remove these if all logic is in figmaActions.ts
 async function getCurrentNodeId(): Promise<string> {
+  // (Keep implementation if needed directly)
   const selection = figma.currentPage.selection;
   if (selection.length === 0) {
-    return JSON.stringify({ 
-      message: "当前没有选中任何节点", 
-      nodeId: null
-    });
+    return JSON.stringify({ message: "当前没有选中任何节点", nodeId: null });
   }
   return JSON.stringify({
     message: `已选中${selection.length}个节点`,
-    nodeIds: selection.map(node => node.id),
-    primaryNodeId: selection[0].id
+    nodeIds: selection.map((node) => node.id),
+    primaryNodeId: selection[0].id,
   });
 }
 
-// 创建矩形
-async function createRectangle(args: any): Promise<string> {
-  try {
-    // 默认值处理
-    const x = args.x ?? 0;
-    const y = args.y ?? 0;
-    const width = args.width || 100;
-    const height = args.height || 100;
-    const name = args.name || "Rectangle";
-    
-    // 创建矩形
-    const rect = figma.createRectangle();
-    rect.x = x;
-    rect.y = y;
-    rect.resize(width, height);
-    rect.name = name;
-    
-    // 处理填充颜色
-    if (args.fill) {
-      const rgb = hexToRgb(args.fill);
-      if (rgb) {
-        const { r, g, b } = rgb;
-        rect.fills = [{ type: 'SOLID', color: { r, g, b } }];
-      }
-    }
-    
-    figma.currentPage.appendChild(rect);
-    figma.currentPage.selection = [rect];
-    
-    return JSON.stringify({
-      success: true,
-      message: `已创建矩形 "${name}"`,
-      nodeId: rect.id
-    });
-  } catch (error) {
-    return JSON.stringify({
-      success: false,
-      error: error instanceof Error ? error.message : String(error)
-    });
-  }
-}
+// --- Map Function Names to Implementations ---
 
-// 创建文本
-async function createText(args: any): Promise<string> {
-  try {
-    // 加载字体
-    await figma.loadFontAsync({ family: "Inter", style: "Regular" });
-    
-    const x = args.x ?? 0;
-    const y = args.y ?? 0;
-    const text = args.text || "新文本";
-    const fontSize = args.fontSize || 14;
-    
-    const textNode = figma.createText();
-    textNode.x = x;
-    textNode.y = y;
-    textNode.characters = text;
-    textNode.fontSize = fontSize;
-    
-    figma.currentPage.appendChild(textNode);
-    figma.currentPage.selection = [textNode];
-    
-    return JSON.stringify({
-      success: true,
-      message: `已创建文本`,
-      nodeId: textNode.id
-    });
-  } catch (error) {
-    return JSON.stringify({
-      success: false,
-      error: error instanceof Error ? error.message : String(error)
-    });
-  }
-}
+// Map function names (as defined in backend tools) to the actual functions that execute them
+// Note: The function signature should ideally accept parsed arguments and return a Promise<ActionResultPayload>
+// The handleFunctionCall wrapper will stringify the result.
+const availableFunctions: Record<
+  string,
+  (args: any) => Promise<any> // Use 'any' for args flexibility, return 'any' as wrapper handles stringify
+> = {
+  // Register functions from figmaActions.ts
+  createStickyNote: handleCreateStickyNote, // <-- REGISTER THE CORRECT FUNCTION
 
-// 颜色转换工具
-function hexToRgb(hex: string): { r: number, g: number, b: number } | null {
-  hex = hex.replace(/^#/, '');
-  if (hex.length === 3) {
-    hex = hex.split('').map(char => char + char).join('');
-  }
-  if (hex.length !== 6) {
-    return null;
-  }
-  const r = parseInt(hex.substring(0, 2), 16);
-  const g = parseInt(hex.substring(2, 4), 16);
-  const b = parseInt(hex.substring(4, 6), 16);
-  return {
-    r: r / 255,
-    g: g / 255,
-    b: b / 255
-  };
-}
+  // Register others if they are also moved to figmaActions.ts
+  // createRectangle: handleCreateRectangle,
+  // createText: handleCreateText,
 
-// 可用函数映射表
-const availableFunctions: Record<string, (args: any) => Promise<string | object>> = {
-  getCurrentNodeId,
-  createRectangle,
-  createText,
-  // 可根据需要添加更多函数
+  // Keep direct implementations if necessary
+  getCurrentNodeId: getCurrentNodeId,
+
+  // Add other functions defined in figmaActions.ts here
 };
 
 /**
- * 处理函数调用
- * @param functionCall 函数调用信息
- * @returns 函数执行结果（字符串）
+ * 处理函数调用 - Dispatches to registered functions
+ * @param functionCallData - Object containing { name, arguments (string), call_id }
+ * @returns Promise<string> - Stringified JSON result (success or error)
  */
-export async function handleFunctionCall(functionCall: {
-  name: string;
-  arguments: string;
-  call_id: string;
-}): Promise<string> {
+export async function handleFunctionCall(
+  functionCallData: FunctionCallData
+): Promise<string> {
+  const { name, arguments: argsString, call_id } = functionCallData; // Destructure for clarity
+
   try {
-    console.log(`[functionCalls] 处理函数调用: ${functionCall.name}`);
-    
-    // 解析参数
-    const args = safeJsonParse(functionCall.arguments);
-    
-    // 获取函数
-    const targetFunction = availableFunctions[functionCall.name];
+    console.log(
+      `[functionCalls] Handling function call: ${name} (Call ID: ${call_id})`
+    );
+
+    // Safely parse arguments string
+    const args = safeJsonParse(argsString);
+    console.log(`[functionCalls] Parsed arguments for ${name}:`, args);
+
+    // Find the target function in our map
+    const targetFunction = availableFunctions[name];
+
     if (!targetFunction) {
-      throw new Error(`未知函数: ${functionCall.name}`);
+      console.error(`[functionCalls] Unknown function requested: ${name}`);
+      // Throw specific error to be caught below
+      throw new Error(`未知函数: ${name}`);
     }
-    
-    // 执行函数
-    console.log(`[functionCalls] 执行 ${functionCall.name} 参数:`, args);
-    const result = await targetFunction(args);
-    
-    // 将结果转为字符串
-    const resultStr = typeof result === 'string' 
-      ? result 
-      : JSON.stringify(result, null, 2);
-    
-    console.log(`[functionCalls] ${functionCall.name} 结果:`, resultStr);
-    return resultStr;
+
+    // Execute the target function
+    console.log(`[functionCalls] Executing ${name}...`);
+    const resultObject = await targetFunction(args); // Execute the actual Figma action function
+
+    // The resultObject should ideally be ActionResultPayload { success: boolean, ... }
+    console.log(
+      `[functionCalls] Function ${name} execution completed. Result object:`,
+      resultObject
+    );
+
+    // Stringify the entire result object to send back
+    // The backend expects a string in the 'output' field of the function_result message
+    return JSON.stringify(resultObject);
   } catch (error) {
-    console.error(`[functionCalls] 函数 ${functionCall.name} 执行错误:`, error);
+    console.error(
+      `[functionCalls] Error during execution of ${name} (Call ID: ${call_id}):`,
+      error
+    );
+    // Return a stringified error object
     return JSON.stringify({
-      error: error instanceof Error ? error.message : String(error),
-      function: functionCall.name
+      // Consistent error structure
+      success: false, // Indicate failure clearly
+      error:
+        error instanceof Error
+          ? error.message
+          : `执行函数 ${name} 时发生未知错误`,
+      function: name, // Include function name for context
     });
   }
-} 
+}
+
+// Remove redundant inline implementations if they are now handled by figmaActions.ts
+// Remove hexToRgb if it's only used within figmaActions.ts (or move it to utils)
