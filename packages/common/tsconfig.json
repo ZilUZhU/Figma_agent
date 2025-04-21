@@ -9,7 +9,9 @@
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "declaration": true
+    "declaration": true,
+    "composite": true,
+    "rootDir": "./"
   },
   "include": ["./**/*"],
   "exclude": ["node_modules", "dist"]

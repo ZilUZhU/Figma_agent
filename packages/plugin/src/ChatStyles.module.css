@@ -113,6 +113,29 @@
   color: var(--figma-color-text);
 }
 
+/* 流式消息样式 */
+.streaming {
+  border-left: 3px solid var(--figma-color-bg-brand);
+  animation: pulseHighlight 1.5s infinite alternate;
+}
+
+/* 打字指示器样式 */
+.typingIndicator {
+  display: inline-block;
+  margin-left: 4px;
+  color: var(--figma-color-text-secondary);
+  animation: blink 1s infinite;
+}
+
+@keyframes pulseHighlight {
+  from {
+    box-shadow: 0 0 0 rgba(24, 160, 251, 0);
+  }
+  to {
+    box-shadow: 0 0 3px rgba(24, 160, 251, 0.5);
+  }
+}
+
 /* 聊天历史容器样式 */
 .chatHistory {
   flex-grow: 1; /* 占据所有可用垂直空间 */
@@ -139,6 +162,15 @@
   box-sizing: border-box;
   font-family: var(--figma-font-family, sans-serif);
   background-color: var(--figma-color-bg);
+}
+
+/* 输入区域样式 - 使用与inputContainer类似的样式 */
+.inputArea {
+  padding: 0;
+  border-top: 1px solid var(--figma-color-border);
+  background-color: var(--figma-color-bg);
+  box-shadow: 0 -1px 4px rgba(0, 0, 0, 0.05);
+  position: relative;
 }
 
 /* 输入区容器样式 - 作为定位参照物 */
@@ -204,6 +236,18 @@
 .sendButtonOverlay:disabled {
   opacity: 0.5 !important;
   cursor: not-allowed !important;
+  background-color: var(--figma-color-bg-disabled) !important;
+  color: var(--figma-color-text-disabled) !important;
+}
+
+/* 输入状态指示器 */
+.inputStatusIndicator {
+  padding: 5px 12px;
+  font-size: 12px;
+  color: var(--figma-color-text-secondary);
+  background-color: var(--figma-color-bg-secondary);
+  border-top: 1px solid var(--figma-color-border);
+  text-align: center;
 }
 
 /* 初始提示消息样式 */

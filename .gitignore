@@ -53,3 +53,5 @@ logs/
 .cache/
 
 .turbo
+docs/
+.cursor/

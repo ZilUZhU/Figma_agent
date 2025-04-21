@@ -1,23 +1,43 @@
-/**
- * 共享类型定义
- * 这个文件包含在后端和前端之间共享的类型定义
- */
+export type MessageRole = "user" | "assistant" | "developer" | "system";
 
-// 消息角色类型，与OpenAI API一致
-export type MessageRole = "system" | "user" | "assistant";
-
-// 单个聊天消息的接口
 export interface ChatMessage {
   role: MessageRole;
-  content: string;
+  content: string | null;
 }
 
-// 聊天历史的类型
 export type ChatHistory = ChatMessage[];
 
-// 聊天响应接口
+export interface FunctionCallArguments {
+  text: string;
+  x: number | null;
+  y: number | null;
+  color: string | null;
+  relativeToNodeId: string | null;
+  positionRelation: "RIGHT" | "LEFT" | "ABOVE" | "BELOW" | "NEAR" | null;
+}
+
+export interface FunctionCall {
+  name: string;
+  arguments: string | FunctionCallArguments;
+  call_id?: string;
+}
+
+export interface FunctionCallOutput {
+  type: "function_call_output";
+  call_id: string;
+  output: string; // Result as a string
+}
+
 export interface ChatResponse {
   message: string;
-  responseId?: string; // 添加可选的响应ID字段，用于跟踪对话
-  sessionId?: string; // 添加会话ID字段，用于持续对话
+  responseId: string;
+  sessionId: string;
+  output_text?: string;
+  function_call?: FunctionCall;
 }
+
+export type ConnectionStatus =
+  | "connecting"
+  | "connected"
+  | "disconnected"
+  | "error";

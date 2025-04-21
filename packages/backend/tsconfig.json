@@ -1,20 +1,35 @@
 {
   "compilerOptions": {
     "target": "ES2020",
-    "module": "commonjs",
+    "module": "CommonJS",
     "lib": ["ES2020"],
     "outDir": "./dist",
-    "rootDir": "../../",
+    // Configure rootDir to point to src directory
+    "rootDir": "./src",
     "strict": true,
     "esModuleInterop": true,
     "skipLibCheck": true,
     "forceConsistentCasingInFileNames": true,
     "resolveJsonModule": true,
-    "baseUrl": "../../",
+    // baseUrl should be '.' (the directory of tsconfig.json) when using paths
+    "baseUrl": ".",
     "paths": {
-      "common/*": ["packages/common/*"]
-    }
+      // Define paths relative to baseUrl
+      "@common/*": ["../common/*"],
+      "@config/*": ["./src/config/*"],
+      "@services/*": ["./src/services/*"],
+      "@utils/*": ["./src/utils/*"],
+      "@routes/*": ["./src/routes/*"],
+      "@middleware/*": ["./src/middleware/*"],
+      "@tools/*": ["./src/tools/*"],
+      "@types": ["./src/types"]
+    },
+    "sourceMap": true,
+    "moduleResolution": "node",
+    "composite": true
   },
-  "include": ["src/**/*", "../common/**/*"],
-  "exclude": ["node_modules", "dist"]
+  // Include only source files within this package's src directory
+  "include": ["src/**/*"],
+  "exclude": ["node_modules", "dist"],
+  "references": [{ "path": "../common" }]
 }

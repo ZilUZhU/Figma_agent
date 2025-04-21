@@ -1,23 +1,24 @@
-/**
- * 插件配置文件
- * 用于管理配置项，提高代码可维护性
- */
-
-// 定义环境类型
 export type Environment = "development" | "production";
 
-// 在Figma插件环境中，设置默认为development
-export const ENV: Environment = "development";
+// --- Configuration ---
+const IS_PRODUCTION_BUILD = false;
 
-// API基础URL
-const API_BASE_URL = "http://localhost:3000";
+const DEV_API_URL = "http://localhost:3000";
+const DEV_WS_URL = "ws://localhost:3000";
 
-// 导出配置
+const PROD_API_URL = "https://temp.com";
+const PROD_WS_URL = "wss://temp.com";
+
 export const config = {
-  // API基础URL
-  apiBaseUrl: API_BASE_URL,
-
-  // 其他全局配置项
-  timeoutMs: 30000, // API请求超时时间（毫秒）
-  retryAttempts: 3, // 请求失败重试次数
+  apiBaseUrl: IS_PRODUCTION_BUILD ? PROD_API_URL : DEV_API_URL,
+  wsBaseUrl: IS_PRODUCTION_BUILD ? PROD_WS_URL : DEV_WS_URL,
+  // retryAttempts: 3, // Removed as api.ts is removed
+  reconnectMaxAttempts: 5,
+  reconnectInitialDelay: 1000,
+  reconnectMaxDelay: 30000,
 };
+
+console.log("[Plugin Config] Using Base URLs:", {
+  api: config.apiBaseUrl,
+  ws: config.wsBaseUrl,
+});
