@@ -1,113 +1,128 @@
+// packages/plugin/src/handlers/functionCalls.ts
+// Restored: Acts as the central dispatcher. Imports functions from both other handler files.
 /**
- * 函数调用处理模块
- * 负责处理从WebSocket接收的函数调用请求
- * 并分发到相应的 Figma 操作函数
+ * Function Call Handler/Dispatcher
+ * Receives function call requests from the main thread, parses arguments,
+ * and calls the appropriate implementation in figmaActions.ts or figmaFunctions.ts.
  */
+import { FunctionCallData, ActionResultPayload } from "../types"; // Use local types
+import { safeJsonParse, safeJsonStringify } from "../utils/jsonUtils";
 
-// Import the actual action handlers
-import { handleCreateStickyNote } from "./figmaActions"; // <-- IMPORT THE ACTION
-// Import other necessary action handlers if they exist in figmaActions.ts
-// import { handleCreateRectangle, handleCreateText } from './figmaActions';
+// Import specific action handlers
+import { handleCreateStickyNote } from "./figmaActions";
+// Import other specific actions from figmaActions.ts if added
 
-// Import utility functions if needed here, or rely on them within figmaActions.ts
-import { safeJsonParse } from "../utils/jsonUtils";
-import { FunctionCallData } from "../types"; // Import necessary type
+// Import general Figma function handlers
+import {
+  getCurrentNodeId,
+  createRectangle,
+  createFrame,
+  createText,
+  screenshotNode,
+  resizeNode,
+  moveNode,
+} from "./figmaFunctions";
 
-// --- Define Figma Functions that might be directly callable (if any) ---
-// Or remove these if all logic is in figmaActions.ts
-async function getCurrentNodeId(): Promise<string> {
-  // (Keep implementation if needed directly)
-  const selection = figma.currentPage.selection;
-  if (selection.length === 0) {
-    return JSON.stringify({ message: "当前没有选中任何节点", nodeId: null });
-  }
-  return JSON.stringify({
-    message: `已选中${selection.length}个节点`,
-    nodeIds: selection.map((node) => node.id),
-    primaryNodeId: selection[0].id,
-  });
-}
-
-// --- Map Function Names to Implementations ---
-
-// Map function names (as defined in backend tools) to the actual functions that execute them
-// Note: The function signature should ideally accept parsed arguments and return a Promise<ActionResultPayload>
-// The handleFunctionCall wrapper will stringify the result.
+// --- Function Map ---
+// Maps the function name string (from AI/backend) to the actual function implementation.
+// Note: The functions from figmaFunctions return stringified JSON directly.
+// The functions from figmaActions return an ActionResultPayload object.
+// The dispatcher needs to handle this difference.
 const availableFunctions: Record<
   string,
-  (args: any) => Promise<any> // Use 'any' for args flexibility, return 'any' as wrapper handles stringify
+  (args: any) => Promise<string | ActionResultPayload>
 > = {
-  // Register functions from figmaActions.ts
-  createStickyNote: handleCreateStickyNote, // <-- REGISTER THE CORRECT FUNCTION
+  // Functions from figmaActions (return ActionResultPayload object)
+  createStickyNote: handleCreateStickyNote,
+  // Add other specific actions here, e.g., 'deleteNode': handleDeleteNode,
 
-  // Register others if they are also moved to figmaActions.ts
-  // createRectangle: handleCreateRectangle,
-  // createText: handleCreateText,
-
-  // Keep direct implementations if necessary
+  // Functions from figmaFunctions (return stringified JSON)
   getCurrentNodeId: getCurrentNodeId,
-
-  // Add other functions defined in figmaActions.ts here
+  createRectangle: createRectangle,
+  createFrame: createFrame,
+  createText: createText,
+  screenshotNode: screenshotNode,
+  resizeNode: resizeNode,
+  moveNode: moveNode,
 };
 
 /**
- * 处理函数调用 - Dispatches to registered functions
- * @param functionCallData - Object containing { name, arguments (string), call_id }
- * @returns Promise<string> - Stringified JSON result (success or error)
+ * Handles function calls requested by the AI.
+ * Parses arguments, calls the relevant function, and returns a stringified result.
+ * @param functionCallData - Contains function name, stringified arguments, and call ID.
+ * @returns Promise<string> - A stringified JSON object representing the result (success/error).
  */
 export async function handleFunctionCall(
   functionCallData: FunctionCallData
 ): Promise<string> {
-  const { name, arguments: argsString, call_id } = functionCallData; // Destructure for clarity
+  const { name, arguments: argsString, call_id } = functionCallData;
 
   try {
-    console.log(
-      `[functionCalls] Handling function call: ${name} (Call ID: ${call_id})`
-    );
+    console.log(`[functionCalls] Handling call: ${name} (ID: ${call_id})`);
 
-    // Safely parse arguments string
-    const args = safeJsonParse(argsString);
-    console.log(`[functionCalls] Parsed arguments for ${name}:`, args);
+    // Safely parse arguments
+    const args = safeJsonParse(argsString); // Returns parsed object or {} on error
+    if (!args) {
+      // safeJsonParse logs the error, we can just throw here
+      throw new Error(
+        `Failed to parse arguments for function ${name}. Input: ${argsString}`
+      );
+    }
+    console.log(`[functionCalls] Parsed args for ${name}:`, args);
 
-    // Find the target function in our map
+    // Find the target function
     const targetFunction = availableFunctions[name];
-
     if (!targetFunction) {
       console.error(`[functionCalls] Unknown function requested: ${name}`);
-      // Throw specific error to be caught below
-      throw new Error(`未知函数: ${name}`);
+      throw new Error(`Unsupported function call: ${name}`);
     }
 
-    // Execute the target function
-    console.log(`[functionCalls] Executing ${name}...`);
-    const resultObject = await targetFunction(args); // Execute the actual Figma action function
+    // Execute the function
+    console.log(`[functionCalls] Executing: ${name}...`);
+    const result = await targetFunction(args); // Result is either string or ActionResultPayload
 
-    // The resultObject should ideally be ActionResultPayload { success: boolean, ... }
-    console.log(
-      `[functionCalls] Function ${name} execution completed. Result object:`,
-      resultObject
-    );
+    console.log(`[functionCalls] Execution finished for ${name}.`);
 
-    // Stringify the entire result object to send back
-    // The backend expects a string in the 'output' field of the function_result message
-    return JSON.stringify(resultObject);
+    // Ensure the result sent back is always stringified JSON
+    if (typeof result === "string") {
+      // If the function already returned a string (from figmaFunctions.ts),
+      // validate it's JSON-like, otherwise wrap it.
+      try {
+        JSON.parse(result); // Validate if it's valid JSON
+        return result; // Return as is
+      } catch (e) {
+        console.warn(
+          `[functionCalls] Function ${name} returned non-JSON string. Wrapping it.`
+        );
+        // Wrap non-JSON string results for consistency (e.g., simple status messages)
+        return safeJsonStringify({ success: true, data: result });
+      }
+    } else if (typeof result === "object" && result !== null) {
+      // If it's an object (from figmaActions.ts), stringify it
+      return safeJsonStringify(result);
+    } else {
+      // Handle unexpected return types (null, undefined, etc.)
+      console.warn(
+        `[functionCalls] Function ${name} returned unexpected type: ${typeof result}`
+      );
+      return safeJsonStringify({
+        success: false,
+        error: `Function ${name} returned unexpected data.`,
+      });
+    }
   } catch (error) {
     console.error(
-      `[functionCalls] Error during execution of ${name} (Call ID: ${call_id}):`,
+      `[functionCalls] Error executing ${name} (ID: ${call_id}):`,
       error
     );
     // Return a stringified error object
-    return JSON.stringify({
-      // Consistent error structure
-      success: false, // Indicate failure clearly
+    const errorPayload: ActionResultPayload = {
+      success: false,
       error:
         error instanceof Error
           ? error.message
-          : `执行函数 ${name} 时发生未知错误`,
-      function: name, // Include function name for context
-    });
+          : `Unknown error executing ${name}`,
+    };
+    return safeJsonStringify(errorPayload); // Use safe stringify
   }
 }
-
-// Remove redundant inline implementations if they are now handled by figmaActions.ts
-// Remove hexToRgb if it's only used within figmaActions.ts (or move it to utils)

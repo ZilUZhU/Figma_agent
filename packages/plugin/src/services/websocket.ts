@@ -1,339 +1,320 @@
 /**
- * WebSocket服务
- * 负责与后端WebSocket服务器的连接和通信
+ * WebSocket Service
+ * Handles connection and communication with the backend WebSocket server.
  */
-
 import { config } from "../config";
-import { ConnectionStatus } from "../types";
+import { ConnectionStatus, FunctionCallData } from "../types"; // Use local types
 
-// 回调函数接口
+// Define the structure of callbacks the UI hook will provide
 export interface WebSocketCallbacks {
-  onMessage: (message: string) => void;
+  onMessage: (message: string) => void; // For general messages/errors from this service
   onStatusChange: (status: ConnectionStatus) => void;
-  onFunctionCall: (functionCall: any) => void;
-  onChunk: (chunk: string) => void;
-  onStreamEnd: (responseId: string) => void;
+  onFunctionCall: (functionCall: FunctionCallData) => void; // Use FunctionCallData type
+  onChunk: (chunk: string) => void; // For text chunks
+  onStreamEnd: (responseId: string) => void; // Stream finished successfully
 }
 
-// WebSocket服务类
 export class WebSocketService {
   private ws: WebSocket | null = null;
-  private sessionId: string | null = null;
+  private sessionId: string | null = null; // Store session ID received from backend
   private callbacks: WebSocketCallbacks;
   private reconnectAttempts = 0;
-  // Use NodeJS.Timeout type for compatibility in different environments
   private reconnectTimeout: ReturnType<typeof setTimeout> | null = null;
-  private isManualClose = false;
+  private isManualClose = false; // Flag to prevent reconnect on manual close
 
-  /**
-   * 构造函数
-   * @param callbacks 回调函数集合
-   */
   constructor(callbacks: WebSocketCallbacks) {
     this.callbacks = callbacks;
-    console.log("[WebSocket] 服务初始化");
+    console.log("[WebSocketService] Initialized");
   }
 
-  /**
-   * 连接到WebSocket服务器
-   */
   connect(): void {
-    if (this.ws) {
-      console.log("[WebSocket] 关闭现有连接并重新连接");
-      // Ensure previous timeout is cleared before attempting to close/reconnect
-      if (this.reconnectTimeout !== null) {
-        clearTimeout(this.reconnectTimeout); // Use global clearTimeout
-        this.reconnectTimeout = null;
-      }
-      this.ws.close();
-      this.ws = null; // Reset ws state
+    if (this.ws && this.ws.readyState !== WebSocket.CLOSED) {
+      console.log("[WebSocketService] Already connected or connecting.");
+      return; // Avoid multiple connections
     }
 
+    // Clear any pending reconnect timeout
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
+      this.reconnectTimeout = null;
+    }
+
+    this.isManualClose = false;
     this.callbacks.onStatusChange("connecting");
-    console.log("[WebSocket] 连接到:", config.wsBaseUrl);
+    console.log("[WebSocketService] Connecting to:", config.wsBaseUrl);
 
     try {
       this.ws = new WebSocket(config.wsBaseUrl);
-
       this.ws.onopen = this.handleOpen.bind(this);
       this.ws.onmessage = this.handleMessage.bind(this);
       this.ws.onclose = this.handleClose.bind(this);
       this.ws.onerror = this.handleError.bind(this);
     } catch (error) {
-      console.error("[WebSocket] 连接错误:", error);
+      console.error("[WebSocketService] Connection failed:", error);
       this.callbacks.onStatusChange("error");
-      // Don't call attemptReconnect directly from catch, handleClose will trigger it if needed
-      // this.attemptReconnect(); // Remove this direct call
+      this.attemptReconnect(); // Attempt reconnect on initial connection error
     }
   }
 
-  /**
-   * 断开WebSocket连接
-   */
   disconnect(): void {
-    console.log("[WebSocket] 手动断开连接");
+    console.log("[WebSocketService] Manual disconnect requested.");
     this.isManualClose = true; // Set flag *before* closing
-
-    if (this.reconnectTimeout !== null) {
-      clearTimeout(this.reconnectTimeout); // Use global clearTimeout
+    if (this.reconnectTimeout) {
+      clearTimeout(this.reconnectTimeout);
       this.reconnectTimeout = null;
     }
-
     if (this.ws) {
       this.ws.close();
       this.ws = null;
     }
-    // Update status explicitly on manual close if needed, though handleClose might also fire
+    // Explicitly set status, handleClose might not fire reliably on manual close
     this.callbacks.onStatusChange("disconnected");
   }
 
-  /**
-   * 发送聊天消息
-   * @param message 用户消息内容
-   */
   sendMessage(message: string): void {
     if (!this.ensureConnection()) {
-      // ensureConnection might trigger a connect attempt, but sending should wait
-      console.warn("[WebSocket] 无法发送消息: 连接未建立");
-      this.callbacks.onMessage("错误: 连接未建立，无法发送消息。请稍后重试。");
+      console.warn("[WebSocketService] Cannot send message: Not connected.");
+      this.callbacks.onMessage(
+        "Error: Not connected. Please wait or retry connection."
+      );
+      // Optionally trigger connect attempt if disconnected
+      if (
+        this.ws?.readyState === WebSocket.CLOSED ||
+        this.ws?.readyState === WebSocket.CLOSING
+      ) {
+        this.connect();
+      }
       return;
     }
 
-    // 只记录发送动作，不记录消息内容，避免日志过大
-    console.log("[WebSocket] 发送用户消息");
-
+    console.log("[WebSocketService] Sending chat message..."); // Avoid logging content
     try {
       this.ws!.send(
         JSON.stringify({
           type: "chat_message",
-          payload: {
-            // Ensure payload structure matches backend expectation
-            message,
-            sessionId: this.sessionId,
-          },
+          payload: { message, sessionId: this.sessionId }, // Include current sessionId
         })
       );
     } catch (error) {
-      console.error("[WebSocket] 发送消息错误:", error);
+      console.error("[WebSocketService] Send message error:", error);
       this.callbacks.onMessage(
-        `错误: 发送消息失败 (${
+        `Error sending message: ${
           error instanceof Error ? error.message : "Unknown"
-        })`
+        }`
       );
-      // Consider triggering reconnect or error state
       this.callbacks.onStatusChange("error");
     }
   }
 
-  /**
-   * 发送函数调用结果
-   * @param functionCallOutput 函数执行结果 (should be { call_id: string, output: string })
-   */
   sendFunctionResult(functionCallOutput: {
     call_id: string;
     output: string;
   }): void {
     if (!this.ensureConnection()) {
-      console.warn("[WebSocket] 无法发送函数结果: 连接未建立");
+      console.warn(
+        "[WebSocketService] Cannot send function result: Not connected."
+      );
       this.callbacks.onMessage(
-        "错误: 连接未建立，无法发送函数结果。请稍后重试。"
+        "Error: Not connected. Cannot send function result."
       );
       return;
     }
-
     if (!this.sessionId) {
-      console.error("[WebSocket] 发送函数结果错误: 未建立会话");
-      this.callbacks.onMessage("错误: 未建立会话，无法发送函数结果");
-      // Optionally trigger error state
-      this.callbacks.onStatusChange("error");
+      console.error(
+        "[WebSocketService] Cannot send function result: Session ID not established."
+      );
+      this.callbacks.onMessage(
+        "Error: Session ID missing. Cannot send function result."
+      );
+      this.callbacks.onStatusChange("error"); // Indicate a problem
       return;
     }
 
-    console.log(`[WebSocket] 发送函数结果: ${functionCallOutput.call_id}`);
-
+    console.log(
+      `[WebSocketService] Sending function result for call ID: ${functionCallOutput.call_id}`
+    );
     try {
       this.ws!.send(
         JSON.stringify({
           type: "function_result",
-          payload: {
-            // Ensure payload structure matches backend expectation
-            functionCallOutput: functionCallOutput, // Send the object directly
-            sessionId: this.sessionId,
-          },
+          payload: { functionCallOutput, sessionId: this.sessionId },
         })
       );
     } catch (error) {
-      console.error("[WebSocket] 发送函数结果错误:", error);
+      console.error("[WebSocketService] Send function result error:", error);
       this.callbacks.onMessage(
-        `错误: 发送函数结果失败 (${
+        `Error sending function result: ${
           error instanceof Error ? error.message : "Unknown"
-        })`
+        }`
       );
       this.callbacks.onStatusChange("error");
     }
   }
 
-  /**
-   * 确保WebSocket连接已建立
-   * @returns boolean 是否已连接
-   */
   private ensureConnection(): boolean {
-    // Only return true if connection is actively OPEN
     return this.ws !== null && this.ws.readyState === WebSocket.OPEN;
   }
 
-  /**
-   * 处理连接打开事件
-   */
   private handleOpen(): void {
-    console.log("[WebSocket] 连接已建立");
-    this.reconnectAttempts = 0; // Reset attempts on successful connection
-    this.isManualClose = false;
+    console.log("[WebSocketService] Connection established.");
+    this.reconnectAttempts = 0; // Reset on successful connection
     this.callbacks.onStatusChange("connected");
   }
 
-  /**
-   * 处理接收到的消息
-   */
   private handleMessage(event: MessageEvent): void {
     try {
       const data = JSON.parse(event.data);
 
-      // 只对非stream_chunk的消息类型输出常规日志
+      // Log only non-chunk messages for clarity
       if (data.type !== "stream_chunk") {
-        console.log(`[WebSocket] 收到消息类型: ${data.type}`);
+        console.log(
+          `[WebSocketService] Received message type: ${data.type}`,
+          data.payload || ""
+        );
       }
 
-      // Ensure payload exists before accessing its properties
       const payload = data.payload || {};
 
       switch (data.type) {
         case "connection_established":
-          console.log(`[WebSocket] 连接已确认，客户端ID: ${payload.clientId}`);
-          // Optionally store clientId if needed
+          console.log(
+            `[WebSocketService] Connection confirmed by server. Client ID: ${payload.clientId}`
+          );
+          // Store session ID if provided on initial connection (though usually comes later)
+          if (payload.sessionId) {
+            this.sessionId = payload.sessionId;
+            console.log(
+              `[WebSocketService] Session ID set on connection: ${this.sessionId}`
+            );
+          }
           break;
-
         case "session_update":
           if (payload.sessionId) {
             this.sessionId = payload.sessionId;
-            console.log(`[WebSocket] 会话ID已更新: ${this.sessionId}`);
+            console.log(
+              `[WebSocketService] Session ID updated: ${this.sessionId}`
+            );
           }
           break;
-
         case "stream_start":
+          console.log("[WebSocketService] Stream starting...");
+          // Ensure session ID is captured if sent with start event
           if (payload.sessionId && !this.sessionId) {
             this.sessionId = payload.sessionId;
-            console.log(`[WebSocket] 会话ID 已设置: ${this.sessionId}`);
+            console.log(
+              `[WebSocketService] Session ID set at stream start: ${this.sessionId}`
+            );
           }
-          console.log("[WebSocket] 流式响应开始");
           break;
-
         case "stream_chunk":
-          // 不输出每个分片的日志，减少日志噪音
           if (payload.text !== undefined) {
             this.callbacks.onChunk(payload.text);
           }
           if (payload.functionCall) {
-            // 函数调用是重要事件，保留日志
             console.log(
-              `[WebSocket] 收到函数调用: ${payload.functionCall.name}`
+              `[WebSocketService] Received function call request: ${payload.functionCall.name}`
             );
-            this.callbacks.onFunctionCall(payload.functionCall);
+            this.callbacks.onFunctionCall(payload.functionCall); // Pass FunctionCallData
           }
           break;
-
         case "stream_end":
-          console.log("[WebSocket] 流式响应结束");
+          console.log(
+            `[WebSocketService] Stream ended. Response ID: ${payload.responseId}`
+          );
+          // Ensure session ID is captured if sent with end event
           if (payload.sessionId && !this.sessionId) {
-            // Set session ID if missed earlier
             this.sessionId = payload.sessionId;
-            console.log(`[WebSocket] 会话ID 在流结束时设置: ${this.sessionId}`);
+            console.log(
+              `[WebSocketService] Session ID set at stream end: ${this.sessionId}`
+            );
           }
-          // 通知UI流已结束，传递responseId
-          this.callbacks.onStreamEnd(payload.responseId || "");
+          this.callbacks.onStreamEnd(payload.responseId || ""); // Pass responseId
           break;
-
         case "stream_error":
-          console.error("[WebSocket] 流式响应错误:", payload.message);
-          this.callbacks.onMessage(`流错误: ${payload.message}`);
-          // Consider setting status to error
+          console.error(
+            "[WebSocketService] Stream error from server:",
+            payload.message
+          );
+          this.callbacks.onMessage(`Stream Error: ${payload.message}`);
           this.callbacks.onStatusChange("error");
           break;
-
-        case "error": // General backend error
+        case "error": // General error from backend
           console.error(
-            "[WebSocket] 收到错误:",
-            payload.message,
-            `(Code: ${payload.code})`
+            `[WebSocketService] Error from server (Code: ${payload.code}):`,
+            payload.message
           );
           this.callbacks.onMessage(
-            `错误 (${payload.code}): ${payload.message}`
+            `Error (${payload.code}): ${payload.message}`
           );
           this.callbacks.onStatusChange("error");
           break;
-
         default:
-          console.warn(`[WebSocket] 未知消息类型: ${data.type}`, data);
+          console.warn(
+            "[WebSocketService] Received unknown message type:",
+            data.type
+          );
       }
     } catch (error) {
-      console.error("[WebSocket] 解析消息错误:", error, event.data);
-      // Notify UI about parsing error
-      this.callbacks.onMessage("错误: 收到无法解析的消息");
+      console.error(
+        "[WebSocketService] Error parsing message:",
+        error,
+        "Data:",
+        event.data
+      );
+      this.callbacks.onMessage(
+        "Error: Received unparsable message from server."
+      );
       this.callbacks.onStatusChange("error");
     }
   }
 
-  /**
-   * 处理连接关闭事件
-   */
   private handleClose(event: CloseEvent): void {
     console.log(
-      `[WebSocket] 连接已关闭: ${event.code} ${
-        event.reason || "No reason provided"
-      }`
+      `[WebSocketService] Connection closed. Code: ${event.code}, Reason: ${
+        event.reason || "N/A"
+      }, Manual: ${this.isManualClose}`
     );
-    this.ws = null; // Clear the WebSocket instance
+    this.ws = null; // Clear instance
 
-    // Check if the closure was unexpected (not manual)
     if (!this.isManualClose) {
-      this.callbacks.onStatusChange("error"); // Indicate error before attempting reconnect
+      this.callbacks.onStatusChange("disconnected"); // Show disconnected first
       this.attemptReconnect();
     } else {
-      this.callbacks.onStatusChange("disconnected"); // Expected disconnection
+      this.callbacks.onStatusChange("disconnected"); // Stay disconnected
     }
-    // Reset manual close flag after handling
-    this.isManualClose = false;
+    // Reset flag after handling close
+    // this.isManualClose = false; // No, keep it true until next connect attempt
   }
 
-  /**
-   * 处理连接错误事件
-   */
   private handleError(event: Event): void {
-    // This often precedes the 'close' event
-    console.error("[WebSocket] 连接发生错误:", event);
-    // Avoid changing status directly here if handleClose will also fire and manage status/reconnect
-    // Only change status if handleClose might not fire (e.g., before connection established)
-    if (!this.ws || this.ws.readyState !== WebSocket.OPEN) {
+    // This often precedes 'close'. Log it but rely on 'close' for reconnect logic.
+    console.error("[WebSocketService] WebSocket error occurred:", event);
+    // Only update status if we know we aren't connected/connecting anymore
+    if (
+      !this.ws ||
+      (this.ws.readyState !== WebSocket.OPEN &&
+        this.ws.readyState !== WebSocket.CONNECTING)
+    ) {
       this.callbacks.onStatusChange("error");
     }
   }
 
-  /**
-   * 尝试重新连接
-   */
   private attemptReconnect(): void {
     if (this.isManualClose || this.reconnectTimeout !== null) {
-      // Don't reconnect if manually closed or already trying
-      console.log("[WebSocket] Skipping reconnect attempt.");
+      console.log(
+        "[WebSocketService] Skipping reconnect attempt (manual close or already scheduled)."
+      );
       return;
     }
 
     if (this.reconnectAttempts >= config.reconnectMaxAttempts) {
       console.log(
-        `[WebSocket] 达到最大重连次数 (${config.reconnectMaxAttempts})，停止重连`
+        `[WebSocketService] Max reconnect attempts (${config.reconnectMaxAttempts}) reached. Stopping.`
       );
       this.callbacks.onStatusChange("error"); // Stay in error state
-      this.callbacks.onMessage("连接失败，请稍后重试或刷新插件");
+      this.callbacks.onMessage(
+        "Connection failed. Please try refreshing the plugin later."
+      );
       return;
     }
 
@@ -344,13 +325,13 @@ export class WebSocketService {
 
     this.reconnectAttempts++;
     console.log(
-      `[WebSocket] ${delay}ms后尝试重连 (${this.reconnectAttempts}/${config.reconnectMaxAttempts})...`
+      `[WebSocketService] Attempting reconnect (${this.reconnectAttempts}/${config.reconnectMaxAttempts}) in ${delay}ms...`
     );
+    this.callbacks.onStatusChange("connecting"); // Show connecting during wait
 
-    // Use global setTimeout directly
     this.reconnectTimeout = setTimeout(() => {
-      this.reconnectTimeout = null; // Clear the timeout ID before connecting
-      this.connect();
+      this.reconnectTimeout = null; // Clear timeout ID before connecting
+      this.connect(); // Attempt connection again
     }, delay);
   }
 }

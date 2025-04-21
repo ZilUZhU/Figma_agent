@@ -1,13 +1,5 @@
-/**
- * AI配置文件
- * 集中管理AI相关的配置和系统消息
- */
+import { ChatMessage } from "@common/types";
 
-// Use path alias for imports
-import { ChatMessage } from "@common/types"; // Import the common ChatMessage type directly
-// Note: We don't need the BackendChatMessage extension here, just the common structure.
-
-// AI助手系统角色和说明
 export const SYSTEM_INSTRUCTION: ChatMessage = {
   role: "developer", // Use 'developer' role for high-priority instructions with Responses API
   content: `
@@ -29,7 +21,8 @@ export const SYSTEM_INSTRUCTION: ChatMessage = {
 export function ensureSystemInstruction(
   messages: Array<ChatMessage | any> // Allow other types like function output
 ): Array<ChatMessage | any> {
-  const hasDeveloperInstruction = messages.length > 0 && messages[0]?.role === 'developer';
+  const hasDeveloperInstruction =
+    messages.length > 0 && messages[0]?.role === "developer";
 
   if (!hasDeveloperInstruction) {
     return [SYSTEM_INSTRUCTION, ...messages];

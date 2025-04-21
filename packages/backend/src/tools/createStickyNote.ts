@@ -1,19 +1,13 @@
 /**
  * Tool Definition: Create Sticky Note
- * Allows the AI to create a FigJam sticky note.
- * Uses strict mode for parameter validation.
  */
-
-import { Tool } from "../types"; // Assuming a base Tool type definition exists
-
+import { Tool } from "../types";
 export const createStickyNoteTool: Tool = {
   type: "function",
-  // function: { <-- REMOVE THIS NESTING if it was still present from old structure
   name: "createStickyNote",
   description:
     "Creates a new sticky note on the FigJam canvas. Places it near the center of the current view or relative to another node if specified.",
-  // *** Ensure 'strict' is explicitly set to true or false ***
-  strict: true, // Explicitly set (was likely already true)
+  strict: true, // Ensure strict mode is explicitly defined
   parameters: {
     type: "object",
     properties: {
@@ -65,7 +59,7 @@ export const createStickyNoteTool: Tool = {
         type: ["string", "null"],
         description:
           "Describes the placement relative to 'relativeToNodeId' (e.g., 'RIGHT', 'BELOW'). Used only if 'relativeToNodeId' is set.",
-        enum: [null, "RIGHT", "LEFT", "ABOVE", "BELOW", "NEAR"], // Define possible relative positions
+        enum: [null, "RIGHT", "LEFT", "ABOVE", "BELOW", "NEAR"],
       },
     },
     required: [
@@ -78,5 +72,4 @@ export const createStickyNoteTool: Tool = {
     ],
     additionalProperties: false,
   },
-  // } <-- REMOVE THIS NESTING if it was still present from old structure
 };

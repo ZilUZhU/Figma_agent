@@ -1,22 +1,20 @@
-// packages/plugin/src/hooks/useChatConnection.ts
-
 import { useState, useEffect, useCallback, useRef } from "preact/hooks";
 import { on, emit } from "@create-figma-plugin/utilities";
 import {
   ConnectionStatus,
-  FunctionCallData, // Type for function call data
-  RequestFigmaFunctionHandler, // Emit this to main thread
-  FigmaFunctionResultHandler, // Listen for this from main thread
-  SetLoadingHandler, // Listen for this from main thread
+  FunctionCallData,
+  RequestFigmaFunctionHandler,
+  FigmaFunctionResultHandler,
+  SetLoadingHandler,
 } from "../types";
-import { WebSocketService } from "../services/websocket"; // Import WS Service
+import { WebSocketService } from "../services/websocket";
 
 // Message structure for UI display
 export interface Message {
   text: string;
   isUser: boolean;
-  id?: string; // 添加唯一ID用于标识消息
-  isComplete?: boolean; // 标记流式响应是否已完成
+  id?: string;
+  isComplete?: boolean;
 }
 
 export function useChatConnection() {
@@ -26,7 +24,6 @@ export function useChatConnection() {
     useState<ConnectionStatus>("disconnected");
   const [inputValue, setInputValue] = useState("");
 
-  // 使用ref来跟踪当前正在处理的流式响应消息
   const currentStreamId = useRef<string | null>(null);
   const wsServiceRef = useRef<WebSocketService | null>(null);
 
@@ -34,93 +31,82 @@ export function useChatConnection() {
   useEffect(() => {
     console.log("[useChatConnection] Initializing WebSocketService...");
 
-    // Define callbacks for WebSocketService
     const wsCallbacks = {
       onStatusChange: (status: ConnectionStatus) => {
         console.log(`[useChatConnection] WS Status Changed: ${status}`);
         setConnectionStatus(status);
         if (status === "error" || status === "disconnected") {
-          setIsLoading(false); // Stop loading on disconnect/error
+          setIsLoading(false); // Stop loading indicator
+          currentStreamId.current = null; // Reset stream tracking
         }
       },
       onChunk: (chunk: string) => {
-        // 处理流式文本块 - 减少日志输出
-        // 只在首次创建新消息时输出日志，避免为每个分片输出日志
-        if (!currentStreamId.current) {
-          // 这是一个新的响应流的开始，创建一个新的消息ID
-          const streamId = `stream-${Date.now()}`;
-          currentStreamId.current = streamId;
-
-          console.log("[useChatConnection] 开始接收流式响应");
-
-          // 添加新的助手消息
-          setMessages((prev) => [
-            ...prev,
-            {
-              text: chunk,
-              isUser: false,
-              id: streamId,
-              isComplete: false,
-            },
-          ]);
-        } else {
-          // 更新现有的流式消息 - 不输出日志
-          setMessages((prev) => {
-            return prev.map((msg) => {
-              if (msg.id === currentStreamId.current) {
-                // 找到当前流消息并附加新块
-                return {
-                  ...msg,
-                  text: msg.text + chunk,
-                };
-              }
-              return msg;
-            });
-          });
-        }
+        // Append chunk to the current streaming message or start a new one
+        setMessages((prev) => {
+          if (currentStreamId.current) {
+            // Find and update existing streaming message
+            return prev.map((msg) =>
+              msg.id === currentStreamId.current
+                ? { ...msg, text: msg.text + chunk }
+                : msg
+            );
+          } else {
+            // Start new streaming message
+            const streamId = `stream-${Date.now()}`;
+            currentStreamId.current = streamId;
+            console.log(
+              "[useChatConnection] Started receiving new stream:",
+              streamId
+            );
+            return [
+              ...prev,
+              { text: chunk, isUser: false, id: streamId, isComplete: false },
+            ];
+          }
+        });
       },
       onFunctionCall: (functionCall: FunctionCallData) => {
-        // Received function call from backend -> Send to Main Thread
+        // Backend requested a Figma function -> Send to Main Thread
         console.log(
-          `[useChatConnection] 接收到函数调用请求: ${functionCall.name}`
+          `[useChatConnection] Received function call request: ${functionCall.name} (Call ID: ${functionCall.call_id})`
         );
+        // Stop any active text streaming UI updates
+        if (currentStreamId.current) {
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === currentStreamId.current
+                ? { ...msg, isComplete: true }
+                : msg
+            )
+          ); // Mark current stream as 'complete' visually
+          currentStreamId.current = null;
+        }
+        // setIsLoading(true); // Indicate work is happening in Figma
         emit<RequestFigmaFunctionHandler>(
           "REQUEST_FIGMA_FUNCTION",
           functionCall
         );
-        // 重置当前流ID，因为函数调用中断了文本流
-        currentStreamId.current = null;
       },
       onStreamEnd: (responseId: string) => {
-        // 流式响应已结束，标记消息为完成状态
+        // Stream finished -> Mark message as complete
         console.log(
-          `[useChatConnection] 流式响应已完成, responseId: ${responseId}`
+          `[useChatConnection] Stream ended. Response ID: ${responseId}`
         );
-
         if (currentStreamId.current) {
-          setMessages((prev) => {
-            return prev.map((msg) => {
-              if (msg.id === currentStreamId.current) {
-                // 标记当前流消息为完成
-                return {
-                  ...msg,
-                  isComplete: true,
-                };
-              }
-              return msg;
-            });
-          });
-
-          // 重置当前流ID和加载状态
-          currentStreamId.current = null;
-          setIsLoading(false);
+          setMessages((prev) =>
+            prev.map((msg) =>
+              msg.id === currentStreamId.current
+                ? { ...msg, isComplete: true }
+                : msg
+            )
+          );
+          currentStreamId.current = null; // Reset stream tracking
         }
+        setIsLoading(false); // Stop loading indicator
       },
       onMessage: (message: string) => {
-        // Handle non-streaming, complete messages (e.g., errors from WS service itself)
-        console.log(
-          `[useChatConnection] Received non-streaming message: ${message}`
-        );
+        // Handle general messages/errors from WebSocketService itself
+        console.log(`[useChatConnection] Received general message: ${message}`);
         setMessages((prev) => [
           ...prev,
           {
@@ -130,12 +116,12 @@ export function useChatConnection() {
             isComplete: true,
           },
         ]);
-        setIsLoading(false);
-        currentStreamId.current = null;
+        setIsLoading(false); // Ensure loading stops
+        currentStreamId.current = null; // Reset stream tracking
       },
     };
 
-    // Create and connect WebSocketService instance
+    // Create and connect WebSocketService
     wsServiceRef.current = new WebSocketService(wsCallbacks);
     wsServiceRef.current.connect();
 
@@ -144,28 +130,42 @@ export function useChatConnection() {
       console.log(
         `[useChatConnection] Received SET_LOADING from main: ${loading}`
       );
+
       setIsLoading(loading);
     });
 
     const unbindFigmaResult = on<FigmaFunctionResultHandler>(
       "FIGMA_FUNCTION_RESULT",
       (result) => {
-        console.log(`[useChatConnection] 收到函数执行结果: ${result.call_id}`);
+        // Received result from Main Thread -> Send back to Backend via WS
+        console.log(
+          `[useChatConnection] Received Figma function result for Call ID: ${result.call_id}`
+        );
         if (wsServiceRef.current) {
-          // Send the result back to the backend via WebSocket
           wsServiceRef.current.sendFunctionResult({
             call_id: result.call_id,
-            output: result.output, // output is already stringified by main.ts
+            output: result.output,
           });
         } else {
           console.error(
-            "[useChatConnection] WebSocket服务不可用，无法发送函数结果"
+            "[useChatConnection] WebSocket service unavailable, cannot send function result."
           );
+          // Show error to user
+          setMessages((prev) => [
+            ...prev,
+            {
+              text: "Error: Failed to send function result back to server.",
+              isUser: false,
+              id: `error-${Date.now()}`,
+              isComplete: true,
+            },
+          ]);
+          setConnectionStatus("error");
         }
       }
     );
 
-    // Cleanup function: Disconnect WebSocket and remove listeners on component unmount
+    // Cleanup on unmount
     return () => {
       console.log(
         "[useChatConnection] Cleaning up WebSocket connection and listeners."
@@ -174,17 +174,17 @@ export function useChatConnection() {
       unbindLoading();
       unbindFigmaResult();
     };
-  }, []); // Empty dependency array ensures this runs only once on mount
+  }, []);
 
   // --- UI Actions ---
 
-  const sendMessage = useCallback(() => {
+  const sendMessageCallback = useCallback(() => {
     if (
       inputValue.trim() === "" ||
       isLoading ||
       connectionStatus !== "connected"
     ) {
-      console.warn("[useChatConnection] 消息发送被阻止:", {
+      console.warn("[useChatConnection] Send message prevented:", {
         inputValueEmpty: inputValue.trim() === "",
         isLoading,
         connectionStatus,
@@ -192,54 +192,55 @@ export function useChatConnection() {
       return;
     }
 
-    const userMessage = inputValue;
+    const userMessageText = inputValue;
     setMessages((prev) => [
       ...prev,
       {
-        text: userMessage,
+        text: userMessageText,
         isUser: true,
         id: `user-${Date.now()}`,
         isComplete: true,
       },
     ]);
-    setInputValue(""); // Clear input immediately
+    setInputValue(""); // Clear input
 
-    // 重置当前流ID以准备新的响应
+    // Reset stream tracking and set loading for backend response
     currentStreamId.current = null;
+    setIsLoading(true);
 
-    // Send message via WebSocket service
     if (wsServiceRef.current) {
-      setIsLoading(true); // Set loading true when sending user message
-      console.log("[useChatConnection] 发送用户消息");
-      wsServiceRef.current.sendMessage(userMessage);
+      console.log("[useChatConnection] Sending user message via WebSocket.");
+      wsServiceRef.current.sendMessage(userMessageText);
     } else {
-      console.error("[useChatConnection] WebSocket服务不可用，无法发送消息");
-      // Optionally show an error message to the user
+      console.error(
+        "[useChatConnection] WebSocket service unavailable, cannot send message."
+      );
       setMessages((prev) => [
         ...prev,
         {
-          text: "错误: 无法发送消息，连接已断开。",
+          text: "Error: Cannot send message, connection lost.",
           isUser: false,
           id: `error-${Date.now()}`,
           isComplete: true,
         },
       ]);
       setConnectionStatus("error");
+      setIsLoading(false);
     }
   }, [inputValue, isLoading, connectionStatus]);
 
-  const handleInputChange = useCallback((value: string) => {
+  const handleInputChangeCallback = useCallback((value: string) => {
     setInputValue(value);
   }, []);
 
-  const retryConnection = useCallback(() => {
+  const retryConnectionCallback = useCallback(() => {
     console.log("[useChatConnection] Retry connection requested.");
     if (
       wsServiceRef.current &&
       connectionStatus !== "connected" &&
       connectionStatus !== "connecting"
     ) {
-      wsServiceRef.current.connect(); // Attempt to reconnect
+      wsServiceRef.current.connect();
     }
   }, [connectionStatus]);
 
@@ -248,9 +249,9 @@ export function useChatConnection() {
     isLoading,
     connectionStatus,
     inputValue,
-    sendMessage,
-    handleInputChange,
-    retryConnection,
-    currentStreamId,
+    sendMessage: sendMessageCallback,
+    handleInputChange: handleInputChangeCallback,
+    retryConnection: retryConnectionCallback,
+    currentStreamId: currentStreamId.current,
   };
 }

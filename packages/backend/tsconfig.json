@@ -1,9 +1,8 @@
-// packages/backend/tsconfig.json
 {
   "compilerOptions": {
-    "target": "ES2020", // Keep ES2018 or later for async iterators
+    "target": "ES2020",
     "module": "CommonJS",
-    "lib": ["ES2020"], // Match target lib
+    "lib": ["ES2020"],
     "outDir": "./dist",
     // Configure rootDir to point to src directory
     "rootDir": "./src",
@@ -16,14 +15,13 @@
     "baseUrl": ".",
     "paths": {
       // Define paths relative to baseUrl
-      "@common/*": ["../common/*"], // Correct path to sibling common directory
+      "@common/*": ["../common/*"],
       "@config/*": ["./src/config/*"],
       "@services/*": ["./src/services/*"],
       "@utils/*": ["./src/utils/*"],
       "@routes/*": ["./src/routes/*"],
       "@middleware/*": ["./src/middleware/*"],
       "@tools/*": ["./src/tools/*"],
-      // Point @types to the specific types file within src
       "@types": ["./src/types"]
     },
     "sourceMap": true,
