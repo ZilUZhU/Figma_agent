@@ -259,3 +259,130 @@ export async function handleDetectAllNodes(
     };
   }
 }
+
+
+
+/**
+ * Handles the 'createText' action.
+ * @param args - Parsed arguments from the AI function call.
+ * @returns Promise<ActionResultPayload> - Result object containing created text node info.
+ */
+export async function handleCreateText(
+  args: FunctionCallArguments
+): Promise<ActionResultPayload> {
+  console.log("[figmaActions] Handling createText with args:", args);
+
+  try {
+    if (figma.editorType !== "figma") {
+      const errorMsg = "Create text action is only available in Figma (not FigJam).";
+      console.warn(`[figmaActions] ${errorMsg}`);
+      return { success: false, error: errorMsg };
+    }
+
+    // Validate and extract arguments
+    const content = typeof args.text === "string" ? args.text : "New Text";
+    const fontSize = typeof args.fontsize === "number" ? args.fontsize : 12;
+    const x = typeof args.x === "number" ? args.x : null;
+    const y = typeof args.y === "number" ? args.y : null;
+    const relativeToNodeId =
+      typeof args.relativeToNodeId === "string" ? args.relativeToNodeId : null;
+    const positionRelation =
+      typeof args.positionRelation === "string" ? args.positionRelation : null;
+
+    console.log(
+      `[figmaActions] Parsed args: content='${content}', fontSize=${fontSize}, x=${x}, y=${y}, relativeTo='${relativeToNodeId}', relation='${positionRelation}'`
+    );
+
+    // 1. Create node
+    const textNode = figma.createText();
+    console.log(`[figmaActions] Created text node: ${textNode.id}`);
+
+    // 2. Load font before setting text
+    let fontLoaded = false;
+    try {
+      await figma.loadFontAsync({ family: "Inter", style: "Medium" });
+      fontLoaded = true;
+    } catch (fontError) {
+      console.error("[figmaActions] Failed to load font Inter Medium:", fontError);
+      figma.notify("Could not load required font for text.", { error: true });
+    }
+    if (fontLoaded) {
+      textNode.characters = content;
+      textNode.fontSize = fontSize;
+      console.log(`[figmaActions] Set text content and font size.`);
+    }
+
+    // 3. Set position
+    let finalX: number;
+    let finalY: number;
+
+    if (relativeToNodeId) {
+      console.log(`[figmaActions] Calculating position relative to node: ${relativeToNodeId}`);
+      const referenceNode = await figma.getNodeByIdAsync(relativeToNodeId);
+
+      if (
+        referenceNode &&
+        "absoluteBoundingBox" in referenceNode &&
+        referenceNode.absoluteBoundingBox
+      ) {
+        const pos = calculateRelativePosition(
+          referenceNode.absoluteBoundingBox,
+          positionRelation,
+          textNode.width,
+          textNode.height
+        );
+        finalX = pos.x;
+        finalY = pos.y;
+        console.log(
+          `[figmaActions] Calculated relative position: x=${finalX.toFixed(
+            0
+          )}, y=${finalY.toFixed(0)}`
+        );
+      } else {
+        console.warn(
+          `[figmaActions] Relative node ${relativeToNodeId} not found or invalid. Placing at viewport center.`
+        );
+        const viewportCenter = figma.viewport.center;
+        finalX = viewportCenter.x;
+        finalY = viewportCenter.y;
+      }
+    } else if (x !== null && y !== null) {
+      console.log(`[figmaActions] Using absolute position: x=${x}, y=${y}`);
+      finalX = x;
+      finalY = y;
+    } else {
+      console.log("[figmaActions] No position specified. Placing at viewport center.");
+      const viewportCenter = figma.viewport.center;
+      finalX = viewportCenter.x;
+      finalY = viewportCenter.y;
+    }
+
+    textNode.x = finalX;
+    textNode.y = finalY;
+    console.log(
+      `[figmaActions] Set final text position: x=${textNode.x.toFixed(0)}, y=${textNode.y.toFixed(
+        0
+      )}`
+    );
+
+    // 4. Select and zoom
+    figma.currentPage.selection = [textNode];
+    figma.viewport.scrollAndZoomIntoView([textNode]);
+    console.log(`[figmaActions] Selected and zoomed to new text node: ${textNode.id}`);
+
+    // 5. Return success
+    const successMessage = `Created text node with content "${content.substring(0, 20)}${
+      content.length > 20 ? "..." : ""
+    }".`;
+    console.log("[figmaActions] handleCreateText successful.");
+    return { success: true, nodeId: textNode.id, data: successMessage };
+  } catch (error) {
+    console.error("[figmaActions] Error in handleCreateText:", error);
+    return {
+      success: false,
+      error: `Error creating text node: ${
+        error instanceof Error ? error.message : "Unknown internal error"
+      }`,
+    };
+  }
+}

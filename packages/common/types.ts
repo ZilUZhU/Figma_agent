@@ -17,6 +17,7 @@ export interface FunctionCallArguments {
   // test arguments
   nodeTypes: string | null;
   parentNodeId: string | null;
+  fontsize: number | null;
 }
 
 export interface FunctionCall {

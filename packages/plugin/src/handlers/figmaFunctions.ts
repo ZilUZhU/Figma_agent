@@ -156,11 +156,12 @@ export async function createText(args: {
   fontSize?: number;
   fill?: string;
   name?: string;
+  content?: string;
 }): Promise<string> {
   try {
-    await figma.loadFontAsync({ family: "Inter", style: "Regular" });
+    await figma.loadFontAsync({ family: "Inter", style: "Medium" });
 
-    const textContent = args.text || "New Text";
+    const textContent = args.content || args.text || "New Text111";
     const fontSize = args.fontSize || 14;
     const name = args.name || "Text";
     // Position text based on its potential size if possible, otherwise center
