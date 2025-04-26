@@ -14,6 +14,9 @@ export interface FunctionCallArguments {
   color: string | null;
   relativeToNodeId: string | null;
   positionRelation: "RIGHT" | "LEFT" | "ABOVE" | "BELOW" | "NEAR" | null;
+  // test arguments
+  nodeTypes: string | null;
+  parentNodeId: string | null;
 }
 
 export interface FunctionCall {

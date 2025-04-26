@@ -168,3 +168,94 @@ export async function handleCreateStickyNote(
 
 // Add other specific action handlers here as needed, e.g.:
 // export async function handleDeleteNode(args: { nodeId: string }): Promise<ActionResultPayload> { ... }
+
+/**
+ * Handles the 'detectAllNodes' action.
+ * @param args - Parsed arguments from the AI function call.
+ * @returns Promise<ActionResultPayload> - Result object containing detected nodes.
+ */
+export async function handleDetectAllNodes(
+  args: FunctionCallArguments
+): Promise<ActionResultPayload> {
+  console.log("[figmaActions] Handling detectAllNodes with args:", args);
+
+  try {
+    // Validate and extract arguments
+    const nodeTypes =
+      Array.isArray(args.nodeTypes) && args.nodeTypes.every((t) => typeof t === "string")
+        ? args.nodeTypes
+        : null;
+    const includeHidden = false;
+      // typeof args.includeHidden === "boolean" ? args.includeHidden : false;
+    const parentNodeId =
+      typeof args.parentNodeId === "string" ? args.parentNodeId : null;
+
+    console.log(
+      `[figmaActions] Parsed args: nodeTypes=${JSON.stringify(
+        nodeTypes
+      )}, includeHidden=${includeHidden}, parentNodeId=${parentNodeId}`
+    );
+
+    // 1. Determine the search root
+    let allFoundNodes: readonly BaseNode[];
+    if (parentNodeId) {
+      console.log(`[figmaActions] Searching under parent node: ${parentNodeId}`);
+      const parentNode = await figma.getNodeByIdAsync(parentNodeId);
+      if (parentNode && "findAll" in parentNode) {
+        allFoundNodes = parentNode.findAll(() => true);
+      } else {
+        const errorMsg = `Parent node ${parentNodeId} not found or invalid.`;
+        console.warn(`[figmaActions] ${errorMsg}`);
+        return { success: false, error: errorMsg };
+      }
+    } else {
+      console.log("[figmaActions] Searching across the entire current page.");
+      allFoundNodes = figma.currentPage.findAll(() => true);
+    }
+
+    // 2. Filter to SceneNodes only
+    const rootNodes: SceneNode[] = allFoundNodes.filter(
+      (node): node is SceneNode => node.type !== "PAGE"
+    );
+    // 3. Apply filters
+    const filteredNodes = rootNodes.filter((node) => {
+      if (!includeHidden && node.visible === false) {
+        return false;
+      }
+      if (nodeTypes && !nodeTypes.includes(node.type)) {
+        return false;
+      }
+      return true;
+    });
+
+    console.log(
+      `[figmaActions] Found ${filteredNodes.length} matching nodes after filters.`
+    );
+
+    // 3. Construct node summaries
+    const nodeSummaries = filteredNodes.map((node) => ({
+      id: node.id,
+      name: node.name,
+      type: node.type,
+    }));
+
+    console.log("[figmaActions] Constructed node summaries.");
+
+    // 4. Return success
+    return {
+      success: true,
+      data: {
+        count: nodeSummaries.length,
+        nodes: nodeSummaries,
+      },
+    };
+  } catch (error) {
+    console.error("[figmaActions] Error in handleDetectAllNodes:", error);
+    return {
+      success: false,
+      error: `Error detecting nodes: ${
+        error instanceof Error ? error.message : "Unknown internal error"
+      }`,
+    };
+  }
+}
