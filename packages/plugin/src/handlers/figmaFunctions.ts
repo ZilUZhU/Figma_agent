@@ -469,6 +469,7 @@ function getAllNodes(node: SceneNode): SceneNode[] {
 // TODO: determine if we want to add time constraints
 export async function trackUserActivity(): Promise<string> {
   try {
+    console.log("[figmaFunctions] trackUserActivity called")
     let activityList = []; // track a series of user activities
     
     // Set up selection change listener

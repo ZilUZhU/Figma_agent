@@ -386,3 +386,86 @@ export async function handleCreateText(
     };
   }
 }
+
+
+
+/**
+ * Handles the 'trackUserActivity' action.
+ * @param args - Parsed arguments from the AI function call (not used here).
+ * @returns Promise<ActionResultPayload> - Result object for activity tracking initialization.
+ */
+export async function handleTrackUserActivity(
+  args: FunctionCallArguments
+): Promise<ActionResultPayload> {
+  console.log("[figmaActions] Handling trackUserActivity with args:", args);
+
+  try {
+    let activityList: any[] = []; // Will track user activities
+    console.log("[figmaActions] Initialized empty activityList.");
+
+    figma.on("selectionchange", async () => {
+      const selection = figma.currentPage.selection;
+
+      if (selection.length === 0) {
+        console.log("[figmaActions] No selection detected, skipping.");
+        return;
+      }
+
+      console.log("[figmaActions] Selection changed:", selection);
+
+      let selectionDetails: any[] = [];
+
+      for (const item of selection) {
+        const details = getAllNodes(item); // Assuming you want simple info
+        selectionDetails.push({
+          node: item.id,
+          content: details,
+        });
+      }
+
+      // Add activity record
+      activityList.push({
+        timestamp: new Date().toISOString(),
+        action: "selection",
+        details: selectionDetails,
+      });
+
+      console.log("[figmaActions] Activity logged:", activityList[activityList.length - 1]);
+    });
+
+    console.log("[figmaActions] Event listener for selectionchange registered.");
+
+    return {
+      success: true,
+      data: {
+        status: "active",
+        message: "User activity tracking initialized successfully.",
+        trackedEvents: ["selectionchange"],
+      },
+    };
+  } catch (error) {
+    console.error("[figmaActions] Error in handleTrackUserActivity:", error);
+    return {
+      success: false,
+      error: `Error initializing user activity tracking: ${
+        error instanceof Error ? error.message : "Unknown internal error"
+      }`,
+    };
+  }
+}
+
+/** 
+ * Helper function
+ * Get all nodes (including nested ones)
+ */
+function getAllNodes(node: SceneNode): SceneNode[] {
+  let nodes: SceneNode[] = [node];
+  
+  if ("children" in node) {
+    for (const child of node.children) {
+      nodes = nodes.concat(getAllNodes(child));
+    }
+  }
+  
+  return nodes;
+}
