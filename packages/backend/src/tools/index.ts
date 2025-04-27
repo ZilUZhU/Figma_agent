@@ -7,6 +7,8 @@ import { createStickyNoteTool } from "./createStickyNote";
 import { detectAllNodesTool } from "./detectAllNodes";
 import { createTextTool } from "./createText";
 import { trackUserActivityTool } from "./trackUserActivity";
+import { createRectangleTool, createFrameTool } from "./otherTools";
+
 
 import { Tool } from "../types"; // Use type from backend/src/types.ts
 
@@ -17,6 +19,8 @@ export const availableTools: Tool[] = [
   detectAllNodesTool,
   createTextTool,
   trackUserActivityTool,
+  createRectangleTool,
+  createFrameTool,
 ];
 
 // Optional: Export individual tools if they need to be referenced directly elsewhere
@@ -26,4 +30,6 @@ export {
   detectAllNodesTool,
   createTextTool,
   trackUserActivityTool,
+  createRectangleTool,
+  createFrameTool,
 };
