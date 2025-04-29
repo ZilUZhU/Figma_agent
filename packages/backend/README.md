@@ -1,53 +1,54 @@
-# Figma AI Chat 后端服务
+# Figma AI Chat Backend Service
 
-这是 Figma AI Chat 项目的后端服务部分。完整文档请参阅[主 README](../../README.md)。
+This is the backend service part of the Figma AI Chat project.  
+For the full documentation, please refer to the [Main README](../../README.md).
 
-## 后端特定说明
+## Backend-Specific Notes
 
-### 环境变量配置
+### Environment Variable Configuration
 
-在`.env`文件中配置以下变量:
+Configure the following variables in a `.env` file:
 
 ```
-# OpenAI API密钥（必需）
+# OpenAI API Key (required)
 OPENAI_API_KEY=sk-your-api-key-here
 
-# 端口设置（可选，默认为3000）
+# Port setting (optional, defaults to 3000)
 PORT=3000
 
-# 环境设置（可选，默认为development）
+# Environment setting (optional, defaults to development)
 NODE_ENV=development
 
-# 调试请求头（可选，默认为false）
+# Debug request headers (optional, defaults to false)
 DEBUG_HEADERS=false
 
-# 日志级别（可选，默认为info）
+# Log level (optional, defaults to info)
 LOG_LEVEL=info
 ```
 
-### 代码结构
+### Code Structure
 
-- `src/index.ts` - 服务入口点，Express 应用配置和 API 路由
-- `src/routes/` - API 路由处理
-- `src/services/` - 业务逻辑服务层
-- `src/types.ts` - 后端特定类型定义
-- `src/config/` - 配置文件
+- `src/index.ts` - Service entry point; sets up the Express app and API routes
+- `src/routes/` - API route handlers
+- `src/services/` - Business logic service layer
+- `src/types.ts` - Backend-specific type definitions
+- `src/config/` - Configuration files
 
-### AI 模型设置
+### AI Model Setting
 
-默认使用的 OpenAI 模型是 `gpt-4.1-2025-04-14`。
+The default OpenAI model used is `gpt-4.1-2025-04-14`。
 
-### 会话管理
+### Session Management
 
-后端负责管理完整的对话历史记录，自动为每个会话分配唯一 ID，并提供会话过期清理机制。
+The backend manages complete conversation histories, automatically assigns unique session IDs, and includes session expiration cleanup.
 
-### API 端点
+### API Endpoints
 
 #### POST /api/chat
 
-接收聊天消息并返回 AI 回复。
+Receives chat messages and returns AI responses.
 
-请求体格式:
+Request Body Format:
 
 ```json
 {
@@ -56,7 +57,7 @@ LOG_LEVEL=info
 }
 ```
 
-响应格式:
+Response Format:
 
 ```json
 {
@@ -68,21 +69,17 @@ LOG_LEVEL=info
 
 #### GET /health
 
-健康检查端点，返回服务状态与诊断信息。
+Health check endpoint that returns service status and diagnostic information.
 
-### 日志级别
+### Logging Levels
 
-日志系统支持以下级别（从最低到最高优先级）：
+The logging system supports the following levels (in increasing order of severity):
 
-- `trace` - 非常详细的调试信息（例如 WebSocket 消息分片）
-- `debug` - 调试信息（详细流程）
-- `info` - 关键操作和状态变化（生产环境默认级别）
-- `warn` - 潜在问题或异常情况
-- `error` - 影响功能的错误
-- `fatal` - 需要立即关注的严重错误
+- `trace` - Highly detailed debug information (e.g., WebSocket message fragments)
+- `debug` - Debug information (detailed process tracing)
+- `info` - Key operations and status changes (default for production)
+- `warn` - Potential issues or abnormal situations
+- `error` - Errors affecting functionality
+- `fatal` - Critical errors requiring immediate attention
 
-设置一个日志级别将输出该级别及更高级别的所有日志。例如，设置 `LOG_LEVEL=info` 将输出 info、warn、error 和 fatal 日志，但不输出 debug 和 trace 日志。
-
-```
-
-```
+Setting a log level will output logs at that level and all higher-priority levels. For example, `LOG_LEVEL=info` will output info, warn, error, and fatal logs，but not debug or trace.

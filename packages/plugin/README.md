@@ -1,88 +1,91 @@
-# Figma AI Chat 插件
+# Figma AI Chat Plugin
 
-这是 Figma AI Chat 项目的插件部分。完整文档请参阅[主 README](../../README.md)。
+This is the plugin part of the Figma AI Chat project.  
+For the full documentation, please refer to the [Main README](../../README.md).
 
-## 插件特定说明
+## Plugin-Specific Notes
 
-### 代码结构
+### Code Structure
 
-- `src/main.ts` - 插件逻辑，运行在 Figma 沙箱环境中
-- `src/ui.tsx` - 插件 UI 界面，使用 Preact 构建
-- `src/services/api.ts` - 负责与后端 API 通信的服务层
-- `src/hooks/useChatConnection.ts` - 聊天连接状态管理钩子
-- `src/types.ts` - 插件特定类型定义
-- `src/config.ts` - 配置文件，包含 API 端点等
+- `src/main.ts` – Plugin logic, runs inside the Figma sandbox environment
+- `src/ui.tsx` – Plugin UI, built with Preact
+- `src/services/api.ts` – Service layer responsible for backend API communication
+- `src/hooks/useChatConnection.ts` – Hook for managing chat connection states
+- `src/types.ts` – Plugin-specific type definitions
+- `src/config.ts` – Configuration file, including API endpoints and settings
 
-### 架构特点
+### Architecture Highlights
 
-- **无状态前端**: 插件只负责UI展示和用户交互，不存储完整聊天历史
-- **会话管理**: 使用后端分配的会话ID维持对话连续性
-- **错误处理**: 自动重试连接和友好的错误提示
-- **响应式UI**: 实时显示连接状态和消息加载状态
+- **Stateless Frontend**: The plugin only handles UI display and user interactions; it does not store full chat history.
+- **Session Management**: Maintains conversation continuity using a session ID assigned by the backend.
+- **Error Handling**: Automatic connection retries and user-friendly error messages.
+- **Responsive UI**: Real-time display of connection and message loading statuses.
 
-### 开发提示
+### Development Tips
 
-- 修改 UI 时，主要编辑`ui.tsx`文件
-- 处理插件逻辑时，编辑`main.ts`文件
-- 调整样式可通过`ChatStyles.module.css`文件
-- API 调用逻辑集中在`services/api.ts`文件
+- To modify the UI, mainly edit `ui.tsx`.
+- To modify plugin logic, edit `main.ts`.
+- For style adjustments, modify `ChatStyles.module.css`.
+- API communication logic is centralized in `services/api.ts`.
 
-### 常见问题
+### Common Issues
 
-- 如遇连接问题，请检查后端服务是否正常运行
-- Figma 插件只能通过 HTTPS 连接后端，确保使用 ngrok 等工具暴露后端服务
-- 会话ID存储在插件内存中，关闭插件后将丢失(可考虑改用本地存储)
+- If you encounter connection problems, ensure that the backend service is running properly.
+- Figma plugins must connect to the backend via HTTPS; make sure to expose the backend using tools like ngrok.
+- Session IDs are stored in plugin memory and will be lost after closing the plugin (consider using local storage if needed).
 
-## 功能
+## Features
 
-- 在 Figma/FigJam 中提供嵌入式聊天界面
-- 支持多轮对话（通过后端会话管理）
-- 干净简洁的用户界面
-- 实时加载状态显示
-- 连接状态指示器
+- Provides an embedded chat interface within Figma/FigJam
+- Supports multi-turn conversations (managed via backend sessions)
+- Clean and minimalistic user interface
+- Real-time loading status display
+- Connection status indicator
 
-## 开发
+## Development
 
-### 先决条件
+### Prerequisites
 
-- Node.js (v18+) 和 npm
-- Figma 桌面应用（用于测试）
+- Node.js (v18+)
+- Figma Desktop App (for testing)
 
-### 安装依赖
+### Install Dependencies
 
 ```bash
 cd packages/plugin
 npm install
 ```
 
-### 启动开发模式
+### Start Development Mode
 
 ```bash
 npm run watch
 ```
 
-### 在 Figma 中加载插件
+### Load the Plugin in Figma
 
-1. 打开 Figma 桌面应用
-2. 选择菜单 → 插件 → 开发 → 导入插件
-3. 选择项目根目录下的 `manifest.json` 文件
+1. Open the Figma Desktop App
+2. Navigate to Menu → Plugins → Development → Import Plugin
+3. Select the `manifest.json` file located in the project root directory
 
-插件将出现在您的 Figma 插件开发列表中。
+The plugin will then appear in your Figma development plugin list.
 
-## 构建
+## Build
 
-构建生产版本：
+Build the production version:
 
 ```bash
 npm run build
 ```
 
-构建的文件将位于 `build` 目录中。
+The built files will be output to the `build` directory.
 
-## 部署
+## Deployment
+<!-- TODO: We may not need this part -->
 
 要发布到 Figma 社区，请按照 [官方文档](https://help.figma.com/hc/en-us/articles/360042293394-Publish-plugins-and-widgets-to-the-Community) 进行操作。
 
-## 注意
+## Notes
 
-该插件依赖于单独运行的后端服务来处理与 OpenAI API 的通信。请确保按照 `packages/backend` 目录中的说明设置和运行后端服务。
+This plugin relies on a separately running backend service to handle communication with the OpenAI API.
+Please ensure you have set up and are running the backend according to the instructions in the `packages/backend` directory.
