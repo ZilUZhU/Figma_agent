@@ -9,16 +9,16 @@ This project uses a Monorepo structure:
 ```
 figma-agent/
 ├── packages/
-│   ├── plugin/       # Figma 插件代码
-│   │   ├── src/      # 源代码
+│   ├── plugin/       # Figma plugin code
+│   │   ├── src/      # source code
 │   │   └── ...
 │   │
-│   ├── backend/      # 外部后端服务
-│   │   ├── src/      # 源代码
+│   ├── backend/      # backend service
+│   │   ├── src/      # source code
 │   │   └── ...
 │   │
-│   └── common/       # 共享代码和类型定义
-│       ├── types.ts  # 共享类型
+│   └── common/       # shared code and type
+│       ├── types.ts  # shared type
 │       └── ...
 │
 └── ...
