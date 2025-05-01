@@ -1,6 +1,44 @@
-# Figma AI Chat Assistant
+# FigChat Assistant
 
-A Figma/FigJam plugin that provides an embedded chat interface, allowing users to have multi-turn conversations with an AI (via the OpenAI API) directly within the design environment.
+An intelligent AI-powered assistant for FigJam that streamlines design ideation, layout planning, and component creation—all through natural language prompts. Powered by GPT-4.1 and seamlessly integrated with Figma’s API, FigChat enables designers to chat, search the web, validate ideas, and generate fully structured templates with a single click—eliminating repetitive tasks and accelerating the creative process.
+
+---
+
+## Problems to be solved
+
+Despite rapid advances in AI—especially with search and web-search capabilities—most “info-rich” models still spit out long, text-heavy responses that aren’t easily visualized or digestible during a brainstorming session. Switching between multiple tools for idea generation and validation interrupts the creative flow and kills productivity. Built-in AI in FigJam often produces empty templates with no real content (and they’re not editable), while existing Figma plugins force you to click through every step and never take initiative.  
+
+**FigChat** addresses these challenges by acting as a proactive AI agent that:
+- Generates context-filled, editable FigJam templates in a single step  
+- Integrates web research directly into your board, organized into clear sections  
+- Takes initiative—automating repetitive setup work so you can focus on creativity
+
+---
+## Core Features
+
+- **Multi-Turn Conversations**: Supports full context memory, with conversation history stored on the backend.
+- **Session Management**: Automatically assigns a session ID for each conversation, with support for session persistence and expiration.
+- **Modern UI**: Clean and minimalistic interface, consistent with Figma's style.
+- **Security**: API keys are securely stored on the backend and never exposed to users.
+- **Responsiveness**: Real-time display of loading status and responses.
+- **Error Handling**: Provides user-friendly error messages and retry mechanisms.
+- **Health Monitoring**: Real-time monitoring of service status and session statistics.
+
+## Use Cases
+
+- **Context-Rich Template Generation**  
+  “Generate a FigJam workshop board for ‘What can I create for an AI agent,’ complete with well structured section titles, content-filled sticky notes”
+- **Web-Powered Research & Ideation**  
+  “Pull the latest market trends on ‘remote work tools’ and automatically organize findings into ‘Pros’, ‘Cons’, and ‘Opportunities’ sections.”
+- **Interactive Template Customization**  
+  “After generating a ‘Sprint Planning’ template, adjust section layouts and rewrite prompts directly in the board to fit your team’s process.”
+- **Collaborative Brainstorming Sessions**  
+  “During a live FigJam session, ask FigChat for ‘5 creative ice-breaker questions’ and have them appear instantly as sticky notes for the team to discuss.”
+
+---
+## Workflow diagram
+
+<img width="1235" alt="Image" src="https://github.com/user-attachments/assets/03717ee4-50b5-498b-b83f-55bfe7cce3d3" />
 
 ## Project Structure
 
@@ -23,18 +61,7 @@ figma-agent/
 │
 └── ...
 ```
-
-
-## Core Features
-
-- **Multi-Turn Conversations**: Supports full context memory, with conversation history stored on the backend.
-- **Session Management**: Automatically assigns a session ID for each conversation, with support for session persistence and expiration.
-- **Modern UI**: Clean and minimalistic interface, consistent with Figma's style.
-- **Security**: API keys are securely stored on the backend and never exposed to users.
-- **Responsiveness**: Real-time display of loading status and responses.
-- **Error Handling**: Provides user-friendly error messages and retry mechanisms.
-- **Health Monitoring**: Real-time monitoring of service status and session statistics.
-
+---
 ## Architecture Design
 
 ### Key Design Decisions
@@ -44,6 +71,7 @@ figma-agent/
 - **Stateless Frontend**: The plugin does not store full chat history, ensuring clear separation of concerns.
 - **Type Safety**: Shared type definitions guarantee interface consistency between frontend and backend.
 
+---
 ## Quick Start
 
 ### 1. Clone the repository
@@ -101,7 +129,7 @@ This will:
 
 Follow the terminal instructions to load the plugin into Figma.
 
-
+---
 ## Technical Implementation
 
 ### Plugin (packages/plugin)
@@ -141,7 +169,7 @@ PORT=3000
 # Environment setting (optional, defaults to development)
 NODE_ENV=development
 ```
-
+---
 ## Troubleshooting
 
 ### Plugin Cannot Connect to Backend
@@ -162,6 +190,8 @@ NODE_ENV=development
 - Ensure that your OpenAI account has sufficient quota and no billing issues.
 - Check the backend server logs for detailed error messages and diagnostics.
 
+---
+
 ## Contribution Guidelines
 
 We welcome contributions via Pull Requests and Issues!  
@@ -174,6 +204,7 @@ Please ensure that your code aligns with the project’s coding standards and pa
 - Use **clear, meaningful variable and function names**.
 - Add **comments** to explain any non-trivial or complex logic.
 
+---
 ## License
 
 This project is licensed under the [MIT License](LICENSE).
@@ -186,5 +217,10 @@ This project is licensed under the [MIT License](LICENSE).
 - [OpenAI API Documentation](https://platform.openai.com/docs/)
 - [Create Figma Plugin Framework Documentation](https://yuanqing.github.io/create-figma-plugin/)
 
+---
+
 ## Members
-<!-- TODO: add members -->
+
+- Yuxi Chen: Product Designer
+- Dengyang Xu: Backend Developer, Agent Architect
+- Zilu Zhu: Prompt Engineer, Frontend Developer
