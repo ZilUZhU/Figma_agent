@@ -9,5 +9,6 @@
       "common/*": ["packages/common/*"]
     }
   },
-  "include": ["src/**/*", "../common/**/*"]
+  "include": ["src/**/*", "../common/**/*"],
+  "lib": ["DOM", "ES2020"],
 }

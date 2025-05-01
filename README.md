@@ -1,10 +1,10 @@
-# Figma AI Chat 助手
+# Figma AI Chat Assistant
 
-一个 Figma/FigJam 插件，提供嵌入式聊天界面，让用户可以在设计环境内直接与 AI (通过 OpenAI API) 进行多轮对话。
+A Figma/FigJam plugin that provides an embedded chat interface, allowing users to have multi-turn conversations with an AI (via the OpenAI API) directly within the design environment.
 
-## 项目结构
+## Project Structure
 
-本项目采用 Monorepo 结构：
+This project uses a Monorepo structure:
 
 ```
 figma-agent/
@@ -24,160 +24,167 @@ figma-agent/
 └── ...
 ```
 
-## 核心特性
 
-- **多轮对话**: 支持完整的上下文记忆，对话历史存储在后端
-- **会话管理**: 自动为每个对话分配会话ID，支持会话保持和过期清理
-- **现代 UI**: 干净简洁的用户界面，与 Figma 风格一致
-- **安全**: API 密钥存储在后端服务，不会暴露给用户
-- **响应式**: 实时显示加载状态和回复
-- **错误处理**: 提供友好的错误信息和重试机制
-- **健康监控**: 服务状态和会话统计实时可查
+## Core Features
 
-## 架构设计
+- **Multi-Turn Conversations**: Supports full context memory, with conversation history stored on the backend.
+- **Session Management**: Automatically assigns a session ID for each conversation, with support for session persistence and expiration.
+- **Modern UI**: Clean and minimalistic interface, consistent with Figma's style.
+- **Security**: API keys are securely stored on the backend and never exposed to users.
+- **Responsiveness**: Real-time display of loading status and responses.
+- **Error Handling**: Provides user-friendly error messages and retry mechanisms.
+- **Health Monitoring**: Real-time monitoring of service status and session statistics.
 
-### 关键设计决策
+## Architecture Design
 
-- **前后端职责分离**：前端只负责UI展示，后端管理所有对话历史和AI通信
-- **会话管理**：使用UUID标识会话，包含自动过期和清理机制
-- **无状态前端**：插件不存储完整聊天历史，关注点分离更清晰
-- **类型安全**：共享类型定义确保前后端接口一致性
+### Key Design Decisions
 
-## 快速开始
+- **Frontend-Backend Separation**: The frontend handles only UI rendering; the backend manages all conversation history and AI communication.
+- **Session Management**: Sessions are identified with UUIDs, featuring automatic expiration and cleanup.
+- **Stateless Frontend**: The plugin does not store full chat history, ensuring clear separation of concerns.
+- **Type Safety**: Shared type definitions guarantee interface consistency between frontend and backend.
 
-1. 克隆项目
+## Quick Start
+
+### 1. Clone the repository
 
 ```bash
 git clone <repository-url>
 cd figma-agent
 ```
 
-2. 安装依赖
+2. Install dependencies
 
 ```bash
-npm install  # 安装根项目依赖
+npm install  # Install root project dependencies
 ```
 
-3. 设置和运行后端服务
+3. Set up and run the backend service
 
 ```bash
 cd packages/backend
 npm install
-cp .env.example .env  # 然后编辑 .env 填入你的 OpenAI API 密钥
+cp .env.example .env  # Then edit .env to fill in your OpenAI API key
 npm run dev
 ```
 
-4. 设置和构建 Figma 插件
+4. Set up and build the Figma plugin
 
 ```bash
 cd packages/plugin
 npm install
-npm run build  # 或使用 npm run watch 进行开发
+npm run build  # Or use npm run watch for development
 ```
 
-5. 将插件加载到 Figma
+5. Load the plugin into Figma
 
-- 打开 Figma 桌面应用
-- 选择菜单 → 插件 → 开发 → 导入插件
-- 选择项目目录下的 `manifest.json` 文件
+- Open the Figma desktop app
+- Navigate to Menu → Plugins → Development → Import Plugin
+- Select the `manifest.json` file under the project directory
 
-## 快速开发环境
 
-我们提供了一个简化的开发环境设置脚本：
+## Quick Development Environment
+
+We provide a simplified development setup script:
 
 ```bash
-# 在项目根目录执行
+# Run from the project root
 npm run dev
 ```
 
-这将:
+This will:
 
-- 启动 ngrok 创建 HTTPS 隧道
-- 将 ngrok URL 自动注入到插件配置
-- 启动后端服务
-- 启动 Figma 插件构建监听
+- Launch ngrok to create an HTTPS tunnel
+- Automatically inject the ngrok URL into the plugin configuration
+- Start the backend service
+- Start the Figma plugin build watcher
 
-然后按照终端中的说明在 Figma 中加载插件。
+Follow the terminal instructions to load the plugin into Figma.
 
-## 技术实现
 
-### 插件部分 (packages/plugin)
+## Technical Implementation
 
-- **UI 框架**: Preact + TypeScript
-- **UI 组件**: `@create-figma-plugin/ui`
-- **通信**: 通过 `fetch` API 与后端服务通信
-- **状态管理**: React Hooks (useState, useEffect, useCallback)
-- **错误处理**: 自动重试逻辑和用户友好错误提示
+### Plugin (packages/plugin)
 
-### 后端部分 (packages/backend)
+- **UI Framework**: Preact + TypeScript
+- **UI Components**: [`@create-figma-plugin/ui`](https://www.npmjs.com/package/@create-figma-plugin/ui)
+- **Communication**: Communicates with the backend using the `fetch` API
+- **State Management**: React Hooks (`useState`, `useEffect`, `useCallback`)
+- **Error Handling**: Automatic retry logic and user-friendly error messages
 
-- **服务框架**: Node.js + Express
-- **AI 集成**: OpenAI API (`gpt-4.1-2025-04-14` 模型)
-- **会话管理**: 基于内存的会话存储，支持自动过期清理
-- **安全**: CORS 配置，仅允许来自 Figma 域的请求
-- **环境配置**: 通过 dotenv 加载环境变量
-- **错误处理**: 友好的错误响应和日志记录
-- **监控**: 健康检查API提供内存使用和会话统计
+### Backend (packages/backend)
 
-### 共享部分 (packages/common)
+- **Service Framework**: Node.js + Express
+- **AI Integration**: OpenAI API (`gpt-4.1-2025-04-14` model)
+- **Session Management**: In-memory session storage with automatic expiration cleanup
+- **Security**: CORS configuration allowing requests only from Figma domains
+- **Environment Configuration**: Environment variables loaded via dotenv
+- **Error Handling**: Friendly error responses and logging
+- **Monitoring**: Health check API providing memory usage and session statistics
 
-- **类型定义**: 在前后端之间共享的 TypeScript 类型
-- **接口约定**: 定义了 API 请求和响应的格式
+### Shared Code (packages/common)
 
-## 环境变量配置
+- **Type Definitions**: Shared TypeScript types between frontend and backend
+- **API Contracts**: Defines API request and response formats
 
-### 后端环境变量 (.env)
+## Environment Variable Configuration
 
-```
-# OpenAI API密钥（必需）
+### Backend Environment Variables (`.env`)
+
+```bash
+# OpenAI API key (required)
 OPENAI_API_KEY=sk-your-api-key-here
 
-# 端口设置（可选，默认为3000）
+# Port setting (optional, defaults to 3000)
 PORT=3000
 
-# 环境设置（可选，默认为development）
+# Environment setting (optional, defaults to development)
 NODE_ENV=development
 ```
 
-## 常见问题解决
+## Troubleshooting
 
-### 插件无法连接到后端
+### Plugin Cannot Connect to Backend
 
-- 确保后端服务正在运行
-- 检查 ngrok 隧道是否正常工作
-- 在插件的 `config.ts` 中验证 API 基础 URL 是否正确
+- Ensure that the backend service is running properly.
+- Check whether the ngrok tunnel is active and functioning.
+- Verify that the API base URL configured in `config.ts` matches the ngrok address.
 
-### 会话问题
+### Session Management Issues
 
-- 会话存储在插件内存中，关闭插件后将重置
-- 后端会话有24小时的默认过期时间
-- 使用健康检查API (`/health`) 监控活跃会话数量
+- Sessions are stored temporarily in the plugin’s memory; they will reset when the plugin is closed.
+- Backend sessions are set to automatically expire after 24 hours.
+- You can monitor active sessions using the health check API endpoint (`/health`).
 
-### OpenAI API 错误
+### OpenAI API Errors
 
-- 检查 API 密钥是否正确
-- 确认 API 密钥额度是否充足
-- 查看后端服务的控制台日志以获取详细错误信息
+- Confirm that the OpenAI API key is correctly set in the backend environment configuration.
+- Ensure that your OpenAI account has sufficient quota and no billing issues.
+- Check the backend server logs for detailed error messages and diagnostics.
 
-## 贡献指南
+## Contribution Guidelines
 
-欢迎提交 Pull Requests 和 Issues! 请确保您的代码符合项目的代码风格并通过所有测试。
+We welcome contributions via Pull Requests and Issues!  
+Please ensure that your code aligns with the project’s coding standards and passes all relevant tests.
 
-### 代码风格
+### Coding Standards
 
-- 使用 TypeScript 的严格模式
-- 遵循函数式编程原则
-- 使用有意义的变量名和函数名
-- 添加适当的注释说明复杂逻辑
+- Enable and adhere to **TypeScript strict mode**.
+- Follow **functional programming principles** where appropriate.
+- Use **clear, meaningful variable and function names**.
+- Add **comments** to explain any non-trivial or complex logic.
 
-## 许可
+## License
 
-MIT
+This project is licensed under the [MIT License](LICENSE).
 
 ---
 
-## 参考资源
+## Reference Resources
 
-- [Figma 插件 API 文档](https://www.figma.com/plugin-docs/)
-- [OpenAI API 文档](https://platform.openai.com/docs/)
-- [Create Figma Plugin 框架](https://yuanqing.github.io/create-figma-plugin/)
+- [Figma Plugin API Documentation](https://www.figma.com/plugin-docs/)
+- [OpenAI API Documentation](https://platform.openai.com/docs/)
+- [Create Figma Plugin Framework Documentation](https://yuanqing.github.io/create-figma-plugin/)
+
+## Members
+<!-- TODO: add members -->

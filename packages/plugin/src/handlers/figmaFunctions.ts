@@ -156,11 +156,12 @@ export async function createText(args: {
   fontSize?: number;
   fill?: string;
   name?: string;
+  content?: string;
 }): Promise<string> {
   try {
-    await figma.loadFontAsync({ family: "Inter", style: "Regular" });
+    await figma.loadFontAsync({ family: "Inter", style: "Medium" });
 
-    const textContent = args.text || "New Text";
+    const textContent = args.content || args.text || "New Text111";
     const fontSize = args.fontSize || 14;
     const name = args.name || "Text";
     // Position text based on its potential size if possible, otherwise center
@@ -395,6 +396,130 @@ export async function moveNode(args: {
     return JSON.stringify({
       success: false,
       error: error instanceof Error ? error.message : String(error),
+    });
+  }
+}
+
+
+/**
+ * Detects all nodes on the current screen
+ */
+export async function detectAllNodes(): Promise<string> {
+  try {
+    // Get the current page
+    const currentPage = figma.currentPage;
+    
+    
+    // Get all top-level nodes
+    const topLevelNodes = currentPage.children;
+    
+    // Collect all nodes including nested ones
+    const allNodes: SceneNode[] = [];
+    topLevelNodes.forEach(node => {
+      allNodes.push(...getAllNodes(node));
+    });
+    
+    // Create a simpler representation to send to the UI
+    const nodeData = allNodes.map(node => ({
+      id: node.id,
+      name: node.name,
+      type: node.type,
+      content: node.type === "TEXT" ? (node as TextNode).characters : "",
+      // Additional properties is necessary
+    }));
+    
+    console.log("node data", nodeData);
+    
+    // TODO: send data to backend
+    
+    return JSON.stringify({
+      success: true,
+      nodes: nodeData,
+      details: allNodes
+    });
+  } catch (error) {
+    console.error("Error detecting nodes:", error);
+    return JSON.stringify({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
+    });
+  }
+}
+
+/** 
+ * Helper function
+ * Get all nodes (including nested ones)
+ */
+function getAllNodes(node: SceneNode): SceneNode[] {
+  let nodes: SceneNode[] = [node];
+  
+  if ("children" in node) {
+    for (const child of node.children) {
+      nodes = nodes.concat(getAllNodes(child));
+    }
+  }
+  
+  return nodes;
+}
+
+/**
+ * Track user activities
+ * @returns stringified node details
+ */
+// TODO: determine if we want to add time constraints
+export async function trackUserActivity(): Promise<string> {
+  try {
+    console.log("[figmaFunctions] trackUserActivity called")
+    let activityList = []; // track a series of user activities
+    
+    // Set up selection change listener
+    figma.on('selectionchange', async () => {
+      const selection = figma.currentPage.selection;
+      
+      // If nothing is selected, don't do anything
+      if (selection.length === 0) {
+        return;
+      }
+      console.log("selections: ", selection);
+      
+      // Process all selected items
+      let selectionDetails = [];
+      for (let item of selection) {
+        // const content = await getDetailedNodeContent(item);
+        // const coords = await getCoordinates(item);
+        let details = getAllNodes(item);
+        
+        selectionDetails.push({
+          node: item.id,
+          content: details
+        });
+        
+      }
+      
+      // Add to activity list
+      activityList.push({
+        timestamp: new Date().toISOString(),
+        action: "selection",
+        details: selectionDetails
+      });
+      
+      
+    });
+    
+    // Send to agent
+    return JSON.stringify({
+      success: true,
+      message: "User activity tracking initialized",
+      data: {
+        status: "active",
+        trackedEvents: ["selectionchange"]
+      }
+    });
+  } catch (error) {
+    console.error("[figmaFunctions] Error initializing activity tracking:", error);
+    return JSON.stringify({
+      success: false,
+      error: error instanceof Error ? error.message : String(error)
     });
   }
 }

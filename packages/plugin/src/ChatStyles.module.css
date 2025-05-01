@@ -104,6 +104,8 @@
   align-self: flex-end;
   background-color: var(--figma-color-bg-brand);
   color: white;
+  white-space: pre-wrap;
+  word-break: break-word;
 }
 
 /* AI 消息样式 */
@@ -111,6 +113,9 @@
   align-self: flex-start;
   background-color: var(--figma-color-bg-secondary);
   color: var(--figma-color-text);
+  white-space: pre-wrap;
+  word-break: break-word;
+
 }
 
 /* 流式消息样式 */
