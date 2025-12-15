@@ -81,11 +81,11 @@ npm run build
 The built files will be output to the `build` directory.
 
 ## Deployment
-<!-- TODO: We may not need this part -->
 
-要发布到 Figma 社区，请按照 [官方文档](https://help.figma.com/hc/en-us/articles/360042293394-Publish-plugins-and-widgets-to-the-Community) 进行操作。
+Follow [official documentation](https://help.figma.com/hc/en-us/articles/360042293394-Publish-plugins-and-widgets-to-the-Community) for deployment.
 
 ## Notes
 
 This plugin relies on a separately running backend service to handle communication with the OpenAI API.
 Please ensure you have set up and are running the backend according to the instructions in the `packages/backend` directory.
+
